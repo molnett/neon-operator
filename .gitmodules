@@ -1,0 +1,3 @@
+[submodule "neon"]
+	path = neon
+	url = https://github.com/neondatabase/neon

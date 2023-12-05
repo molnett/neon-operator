@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: neon-pageserver
+  namespace: neon
+spec:
+  serviceName: "neon-pageserver"
+  replicas: 3  # Adjust the number of replicas as needed
+  selector:
+    matchLabels:
+      app: neon-pageserver
+  template:
+    metadata:
+      labels:
+        app: neon-pageserver
+    spec:
+      containers:
+      - name: neon-pageserver
+        image: localhost:5001/neon:latest
+        command:
+        - "/usr/local/bin/pageserver"
+        volumeMounts:
+        - name: neon-pageserver-storage
+          mountPath: /.neon/data  # Adjust the mount path as needed
+        ports:
+        - containerPort: 6400
+        - containerPort: 9898
+  volumeClaimTemplates:
+  - metadata:
+      name: neon-pageserver-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 10Gi

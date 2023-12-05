@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: safekeeper
+  namespace: neon
+spec:
+  serviceName: "safekeeper"
+  replicas: 3  # Adjust the number of replicas as needed
+  selector:
+    matchLabels:
+      app: safekeeper
+  template:
+    metadata:
+      labels:
+        app: safekeeper
+    spec:
+      containers:
+      - name: safekeeper
+        image: localhost:5001/neon:latest
+        command:
+        - "/usr/local/bin/safekeeper"
+        args:
+        - "--id=1"
+        - "--broker-endpoint=http://storage-broker-service.neon.svc.cluster.local:50051"
+        - "--listen-pg=0.0.0.0:5454"
+        - "--listen-http=0.0.0.0:7676"
+        ports:
+        - containerPort: 5454
+        - containerPort: 7676

@@ -27,3 +27,26 @@ spec:
         ports:
         - containerPort: 5454
         - containerPort: 7676
+        env:
+        - name: DEFAULT_PG_VERSION
+          value: "15"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: neon
+  name: safekeeper
+spec:
+  clusterIP: None
+  selector:
+    app: safekeeper
+  ports:
+  - name: pg
+    protocol: TCP
+    port:  5454
+    targetPort: 5454
+  - name: http
+    protocol: TCP
+    port: 7676
+    targetPort: 7676
+

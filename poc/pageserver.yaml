@@ -4,7 +4,7 @@ metadata:
   name: neon-pageserver
   namespace: neon
 spec:
-  serviceName: "neon-pageserver"
+  serviceName: "pageserver"
   replicas: 3  # Adjust the number of replicas as needed
   selector:
     matchLabels:
@@ -19,12 +19,16 @@ spec:
         image: localhost:5001/neon:latest
         command:
         - "/usr/local/bin/pageserver"
+        - '-c=listen_pg_addr = "0.0.0.0:6400"'
         volumeMounts:
         - name: neon-pageserver-storage
           mountPath: /.neon/data  # Adjust the mount path as needed
         ports:
         - containerPort: 6400
         - containerPort: 9898
+        env:
+        - name: DEFAULT_PG_VERSION
+          value: "15"
   volumeClaimTemplates:
   - metadata:
       name: neon-pageserver-storage
@@ -33,3 +37,17 @@ spec:
       resources:
         requests:
           storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: neon
+  name: pageserver
+spec:
+  clusterIP: None
+  selector:
+    app: neon-pageserver
+  ports:
+  - protocol: TCP
+    port:  6400
+    targetPort: 6400

@@ -102,7 +102,7 @@ data:
               },
               {
                   "name": "neon.safekeepers",
-                  "value": "safekeeper1:5454,safekeeper2:5454,safekeeper3:5454",
+                  "value": "safekeeper-0.safekeeper:5454,safekeeper-1.safekeeper:5454,safekeeper-2.safekeeper:5454",
                   "vartype": "string"
               },
               {
@@ -117,7 +117,7 @@ data:
               },
               {
                   "name": "neon.pageserver_connstring",
-                  "value": "host=pageserver port=6400",
+                  "value": "host=neon-pageserver-0.pageserver port=6400",
                   "vartype": "string"
               },
               {
@@ -137,9 +137,9 @@ data:
       ],
 
       "safekeeper_connstrings": [
-        "postgresql://postgres:@10.244.0.86:5454",
-        "postgresql://postgres:@10.244.0.85:5454",
-        "postgresql://postgres:@10.244.0.84:5454"
+        "postgresql://postgres:@safekeeper-0:5454",
+        "postgresql://postgres:@safekeeper-1:5454",
+        "postgresql://postgres:@safekeeper-2:5454"
       ]
     }
 
@@ -161,7 +161,7 @@ spec:
     spec:
       containers:
       - name: storage-broker
-        image: localhost:5001/neon-compute-node:latest
+        image: localhost:5001/neon-compute-node:pg15
         args:
         - "--pgdata"
         - "/.neon/data/pgdata"
@@ -180,6 +180,9 @@ spec:
           mountPath: /var
         - name: pgdata
           mountPath: /.neon/data
+        env:
+        - name: OTEL_SDK_DISABLED
+          value: "true"
       volumes:
       - name: spec-volume
         configMap:

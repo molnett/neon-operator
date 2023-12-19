@@ -112,12 +112,12 @@ data:
               },
               {
                   "name": "neon.tenant_id",
-                  "value": "c157a79031e1c40f85931829bc5fc552",
+                  "value": "332e49811572ca79ddbcd21b2d58ed3e",
                   "vartype": "string"
               },
               {
                   "name": "neon.pageserver_connstring",
-                  "value": "host=neon-pageserver-0.pageserver port=6400",
+                  "value": "host=pageserver-0.pageserver port=6400",
                   "vartype": "string"
               },
               {
@@ -137,9 +137,9 @@ data:
       ],
 
       "safekeeper_connstrings": [
-        "postgresql://postgres:@safekeeper-0:5454",
-        "postgresql://postgres:@safekeeper-1:5454",
-        "postgresql://postgres:@safekeeper-2:5454"
+        "postgresql://postgres:@safekeeper-0.safekeeper:5454",
+        "postgresql://postgres:@safekeeper-1.safekeeper:5454",
+        "postgresql://postgres:@safekeeper-2.safekeeper:5454"
       ]
     }
 
@@ -165,8 +165,7 @@ spec:
         args:
         - "--pgdata"
         - "/.neon/data/pgdata"
-        - "--connstr"
-        - "postgresql://postgres:@neon-pageserver-0:6400/postgres"
+        - "--connstr=postgresql://cloud_admin:@0.0.0.0:55433/postgres" # connstring to connect to compute node postgres
         - "--compute-id"
         - "neon-test"
         - "--spec-path"
@@ -174,7 +173,7 @@ spec:
         - "--pgbin"
         - "/usr/local/bin/postgres"
         ports:
-        - containerPort: 50051
+        - containerPort: 55433
         volumeMounts:
         - name: spec-volume
           mountPath: /var

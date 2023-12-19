@@ -5,7 +5,7 @@ metadata:
   namespace: neon
 spec:
   serviceName: "safekeeper"
-  replicas: 3  # Adjust the number of replicas as needed
+  replicas: 3
   selector:
     matchLabels:
       app: safekeeper
@@ -18,18 +18,21 @@ spec:
       - name: safekeeper
         image: localhost:5001/neon:latest
         command:
-        - "/usr/local/bin/safekeeper"
+        - "/bin/bash"
         args:
-        - "--id=1"
-        - "--broker-endpoint=http://storage-broker-service.neon.svc.cluster.local:50051"
-        - "--listen-pg=0.0.0.0:5454"
-        - "--listen-http=0.0.0.0:7676"
+        - "-c"
+        - |
+          /usr/local/bin/safekeeper --id=$(echo ${POD_NAME##*-} | tr -d '-') --broker-endpoint=http://storage-broker-service.neon.svc.cluster.local:50051 --listen-pg=0.0.0.0:5454 --listen-http=0.0.0.0:7676 --advertise-pg=${POD_NAME}.safekeeper:5454
         ports:
         - containerPort: 5454
         - containerPort: 7676
         env:
         - name: DEFAULT_PG_VERSION
           value: "15"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
 ---
 apiVersion: v1
 kind: Service

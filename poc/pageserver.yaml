@@ -1,28 +1,29 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: neon-pageserver
+  name: pageserver
   namespace: neon
 spec:
   serviceName: "pageserver"
-  replicas: 3  # Adjust the number of replicas as needed
+  replicas: 1
   selector:
     matchLabels:
-      app: neon-pageserver
+      app: pageserver
   template:
     metadata:
       labels:
-        app: neon-pageserver
+        app: pageserver
     spec:
       containers:
-      - name: neon-pageserver
+      - name: pageserver
         image: localhost:5001/neon:latest
         command:
         - "/usr/local/bin/pageserver"
         - '-c=listen_pg_addr = "0.0.0.0:6400"'
+        - '-c=broker_endpoint = "http://storage-broker-service.neon.svc.cluster.local:50051"'
         volumeMounts:
-        - name: neon-pageserver-storage
-          mountPath: /.neon/data  # Adjust the mount path as needed
+        - name: pageserver-storage
+          mountPath: /data/.neon/tenants  # Adjust the mount path as needed
         ports:
         - containerPort: 6400
         - containerPort: 9898
@@ -31,7 +32,7 @@ spec:
           value: "15"
   volumeClaimTemplates:
   - metadata:
-      name: neon-pageserver-storage
+      name: pageserver-storage
     spec:
       accessModes: ["ReadWriteOnce"]
       resources:
@@ -46,7 +47,7 @@ metadata:
 spec:
   clusterIP: None
   selector:
-    app: neon-pageserver
+    app: pageserver
   ports:
   - protocol: TCP
     port:  6400

@@ -1,3 +1,63 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pagerserver-config
+  namespace: neon
+data:
+  pagerserver.toml: |
+    broker_endpoint = 'http://storage-broker-service.neon.svc.cluster.local:50051'
+    pg_distrib_dir = '/usr/local/'
+    listen_pg_addr = '0.0.0.0:6400'
+    listen_http_addr = '0.0.0.0:9898'
+
+    [remote_storage]
+    bucket_name = "neon-test"
+    bucket_region = ""
+    endpoint = "http://minio.svc.neon.cluster.local"
+    # Initial configuration file created by 'pageserver --init'
+    #listen_pg_addr = '127.0.0.1:64000'
+    #listen_http_addr = '127.0.0.1:9898'
+
+    #wait_lsn_timeout = '60 s'
+    #wal_redo_timeout = '60 s'
+
+    #max_file_descriptors = 100
+
+    # initial superuser role name to use when creating a new tenant
+    #initial_superuser_name = 'cloud_admin'
+
+    #broker_endpoint = 'http://127.0.0.1:50051'
+
+    #log_format = 'plain'
+
+    #concurrent_tenant_size_logical_size_queries = '1'
+
+    #metric_collection_interval = '10 min'
+    #cached_metric_collection_interval = '0s'
+    #synthetic_size_calculation_interval = '10 min'
+
+    #disk_usage_based_eviction = { max_usage_pct = .., min_avail_bytes = .., period = "10s"}
+
+    #background_task_maximum_delay = '10s'
+
+    # [tenant_config]
+    #checkpoint_distance = 268435456 # in bytes
+    #checkpoint_timeout = 10 m
+    #compaction_target_size = 134217728 # in bytes
+    #compaction_period = '20 s'
+    #compaction_threshold = 10
+
+    #gc_period = '1 hr'
+    #gc_horizon = 67108864
+    #image_creation_threshold = 3
+    #pitr_interval = '7 days'
+
+    #min_resident_size_override = .. # in bytes
+    #evictions_low_residence_duration_metric_threshold = '24 hour'
+    #gc_feedback = false
+    #
+
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -16,11 +76,21 @@ spec:
     spec:
       containers:
       - name: pageserver
+        imagePullPolicy: Always
         image: localhost:5001/neon:latest
         command:
+          # - "/bin/bash"
+          # - "-c"
+          # - "sleep 120"
         - "/usr/local/bin/pageserver"
-        - '-c=listen_pg_addr = "0.0.0.0:6400"'
-        - '-c=broker_endpoint = "http://storage-broker-service.neon.svc.cluster.local:50051"'
+        - '-c'
+        - |
+          listen_pg_addr = "0.0.0.0:6400"
+          broker_endpoint = "http://storage-broker-service.neon.svc.cluster.local:50051"
+          [remote_storage]
+          bucket_name = "neon-test"
+          bucket_region = ""
+          endpoint = "http://minio.neon.svc.cluster.local"
         volumeMounts:
         - name: pageserver-storage
           mountPath: /data/.neon/tenants  # Adjust the mount path as needed
@@ -28,8 +98,14 @@ spec:
         - containerPort: 6400
         - containerPort: 9898
         env:
+        - name: RUST_LOG
+          value: "debug"
         - name: DEFAULT_PG_VERSION
           value: "15"
+        - name: AWS_ACCESS_KEY_ID
+          value: "WkSaaeNbd8hQY3VrgTru"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "7uySJgcgg17TQfMuAf1tLAwloCDdzKfHGZ2UeyD6"
   volumeClaimTemplates:
   - metadata:
       name: pageserver-storage

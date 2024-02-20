@@ -1,6 +1,11 @@
 #![allow(unused_imports, unused_variables)]
 use actix_web::{get, middleware, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder};
-pub use controller::{self, telemetry, State};
+pub use neon_storage::controller;
+pub use util::telemetry;
+
+mod neon_storage;
+mod util;
+
 use prometheus::{Encoder, TextEncoder};
 
 #[get("/metrics")]
@@ -29,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initiatilize Kubernetes controller state
     let state = State::default();
-    let controller = controller::run(state.clone());
+    let neon_storage_controller = neon_storage::controller::run(state.clone());
 
     // Start web server
     let server = HttpServer::new(move || {
@@ -44,6 +49,6 @@ async fn main() -> anyhow::Result<()> {
     .shutdown_timeout(5);
 
     // Both runtimes implements graceful shutdown, so poll until both are done
-    tokio::join!(controller, server.run()).1?;
+    tokio::join!(neon_storage_controller, server.run()).1?;
     Ok(())
 }

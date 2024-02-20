@@ -1,4 +1,5 @@
-use crate::{Document, Error};
+use crate::neon_storage::controller::NeonStorage;
+use crate::util::errors::Error;
 use kube::ResourceExt;
 use prometheus::{histogram_opts, opts, HistogramVec, IntCounter, IntCounterVec, Registry};
 use tokio::time::Instant;
@@ -14,7 +15,7 @@ impl Default for Metrics {
     fn default() -> Self {
         let reconcile_duration = HistogramVec::new(
             histogram_opts!(
-                "doc_controller_reconcile_duration_seconds",
+                "neon_storage_controller_reconcile_duration_seconds",
                 "The duration of reconcile to complete in seconds"
             )
             .buckets(vec![0.01, 0.1, 0.25, 0.5, 1., 5., 15., 60.]),
@@ -23,7 +24,7 @@ impl Default for Metrics {
         .unwrap();
         let failures = IntCounterVec::new(
             opts!(
-                "doc_controller_reconciliation_errors_total",
+                "neon_storage_controller_reconciliation_errors_total",
                 "reconciliation errors",
             ),
             &["instance", "error"],
@@ -48,9 +49,9 @@ impl Metrics {
         Ok(self)
     }
 
-    pub fn reconcile_failure(&self, doc: &Document, e: &Error) {
+    pub fn reconcile_failure(&self, neon_storage: &NeonStorage, e: &Error) {
         self.failures
-            .with_label_values(&[doc.name_any().as_ref(), e.metric_label().as_ref()])
+            .with_label_values(&[neon_storage.name_any().as_ref(), e.metric_label().as_ref()])
             .inc()
     }
 

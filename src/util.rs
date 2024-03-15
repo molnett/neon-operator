@@ -1,6 +1,7 @@
 pub(crate) mod errors;
 pub(crate) mod metrics;
 pub(crate) mod telemetry;
+pub(crate) mod util;
 
 pub use errors::*;
 

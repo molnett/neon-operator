@@ -1,5 +1,4 @@
 use crate::neon_storage::storage_broker;
-use crate::util;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use kube::{
@@ -19,6 +18,8 @@ use serde_json::json;
 use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
 use tracing::*;
+
+use super::super::util::{errors, metrics, telemetry, Result};
 
 pub static NEON_STORAGE_FINALIZER: &str = "neon-storage.oltp.molnett.org";
 
@@ -85,7 +86,7 @@ impl NeonStorage {
 
 impl NeonStorage {
     // Reconcile (for non-finalizer related changes)
-    async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action, util::Error> {
+    async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action, errors::Error> {
         let client = ctx.client.clone();
         let recorder = ctx.diagnostics.read().await.recorder(client.clone(), self);
         let ns = self.namespace().unwrap();
@@ -104,10 +105,11 @@ impl NeonStorage {
                     secondary: None,
                 })
                 .await
-                .map_err(|e| util::Error::StdError(util::StdError::KubeError(e)))?;
+                .map_err(|e| errors::Error::StdError(errors::StdError::KubeError(e)))?;
         }
         if name == "illegal" {
-            return Err(util::Error::StdError(util::StdError::IllegalDocument)); // error names show up in metrics
+            return Err(errors::Error::StdError(errors::StdError::IllegalDocument));
+            // error names show up in metrics
         }
         // always overwrite status object with what we saw
         let new_status = Patch::Apply(json!({
@@ -124,14 +126,14 @@ impl NeonStorage {
         let _o = docs
             .patch_status(&name, &ps, &new_status)
             .await
-            .map_err(|e| util::Error::StdError(util::StdError::KubeError(e)))?;
+            .map_err(|e| errors::Error::StdError(errors::StdError::KubeError(e)))?;
 
         // If no events were received, check back every 5 minutes
         Ok(Action::requeue(Duration::from_secs(5 * 60)))
     }
 
     // Finalizer cleanup (the object was deleted, ensure nothing is orphaned)
-    async fn cleanup(&self, ctx: Arc<Context>) -> util::Result<Action> {
+    async fn cleanup(&self, ctx: Arc<Context>) -> Result<Action> {
         let recorder = ctx.diagnostics.read().await.recorder(ctx.client.clone(), self);
         // Document doesn't have any real cleanup, so we just publish an event
         recorder
@@ -143,8 +145,39 @@ impl NeonStorage {
                 secondary: None,
             })
             .await
-            .map_err(|e| util::Error::StdError(util::StdError::KubeError(e)))?;
+            .map_err(|e| errors::Error::StdError(errors::StdError::KubeError(e)))?;
         Ok(Action::await_change())
+    }
+}
+
+/// State shared between the controller and the web server
+#[derive(Clone, Default)]
+pub struct State {
+    /// Diagnostics populated by the reconciler
+    diagnostics: Arc<RwLock<Diagnostics>>,
+    /// Metrics registry
+    registry: prometheus::Registry,
+}
+
+/// State wrapper around the controller outputs for the web server
+impl State {
+    /// Metrics getter
+    pub fn metrics(&self) -> Vec<prometheus::proto::MetricFamily> {
+        self.registry.gather()
+    }
+
+    /// State getter
+    pub async fn diagnostics(&self) -> Diagnostics {
+        self.diagnostics.read().await.clone()
+    }
+
+    // Create a Controller Context that can update State
+    pub fn to_context(&self, client: Client) -> Arc<Context> {
+        Arc::new(Context {
+            client,
+            metrics: metrics::Metrics::default().register(&self.registry).unwrap(),
+            diagnostics: self.diagnostics.clone(),
+        })
     }
 }
 
@@ -156,12 +189,12 @@ pub struct Context {
     /// Diagnostics read by the web server
     pub diagnostics: Arc<RwLock<Diagnostics>>,
     /// Prometheus metrics
-    pub metrics: util::metrics::Metrics,
+    pub metrics: metrics::Metrics,
 }
 
 #[instrument(skip(ctx, neon_storage), fields(trace_id))]
-pub async fn reconcile(neon_storage: Arc<NeonStorage>, ctx: Arc<Context>) -> util::Result<Action> {
-    let trace_id = util::telemetry::get_trace_id();
+pub async fn reconcile(neon_storage: Arc<NeonStorage>, ctx: Arc<Context>) -> Result<Action> {
+    let trace_id = telemetry::get_trace_id();
     Span::current().record("trace_id", &field::display(&trace_id));
     let _timer = ctx.metrics.count_and_measure();
     ctx.diagnostics.write().await.last_event = Utc::now();
@@ -186,7 +219,7 @@ pub async fn reconcile(neon_storage: Arc<NeonStorage>, ctx: Arc<Context>) -> uti
         },
     )
     .await
-    .map_err(|e| util::Error::StdError(util::StdError::FinalizerError(Box::new(e))));
+    .map_err(|e| errors::Error::StdError(errors::StdError::FinalizerError(Box::new(e))));
 
     // first reconcile storage broker
     match storage_broker::reconcile(neon_storage.clone(), ctx.clone()) {
@@ -194,7 +227,7 @@ pub async fn reconcile(neon_storage: Arc<NeonStorage>, ctx: Arc<Context>) -> uti
         Err(e) => {
             error!("failed to reconcile storage broker: {}", e);
             match e {
-                util::Error::ErrorWithRequeue(error) => return Ok(Action::requeue(error.duration)),
+                errors::Error::ErrorWithRequeue(error) => return Ok(Action::requeue(error.duration)),
                 other => return Ok(Action::await_change()),
             }
         }
@@ -225,14 +258,14 @@ impl Diagnostics {
     }
 }
 
-fn error_policy(neon_storage: Arc<NeonStorage>, error: &util::Error, ctx: Arc<Context>) -> Action {
+fn error_policy(neon_storage: Arc<NeonStorage>, error: &errors::Error, ctx: Arc<Context>) -> Action {
     warn!("reconcile failed: {:?}", error);
     ctx.metrics.reconcile_failure(&neon_storage, error);
     Action::requeue(Duration::from_secs(5 * 60))
 }
 
 /// Initialize the controller and shared state (given the crd is installed)
-pub async fn run(state: crate::State) {
+pub async fn run(state: State) {
     let client = Client::try_default().await.expect("failed to create kube Client");
 
     let neonstorages = Api::<NeonStorage>::all(client.clone());

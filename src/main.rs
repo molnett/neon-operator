@@ -1,15 +1,16 @@
 #![allow(unused_imports, unused_variables)]
 use actix_web::{get, middleware, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder};
-pub use neon_storage::controller;
-pub use util::telemetry;
 
 mod neon_storage;
+use neon_storage::controller;
+
 mod util;
+use util::telemetry;
 
 use prometheus::{Encoder, TextEncoder};
 
 #[get("/metrics")]
-async fn metrics(c: Data<State>, _req: HttpRequest) -> impl Responder {
+async fn metrics(c: Data<neon_storage::controller::State>, _req: HttpRequest) -> impl Responder {
     let metrics = c.metrics();
     let encoder = TextEncoder::new();
     let mut buffer = vec![];
@@ -23,7 +24,7 @@ async fn health(_: HttpRequest) -> impl Responder {
 }
 
 #[get("/")]
-async fn index(c: Data<State>, _req: HttpRequest) -> impl Responder {
+async fn index(c: Data<neon_storage::controller::State>, _req: HttpRequest) -> impl Responder {
     let d = c.diagnostics().await;
     HttpResponse::Ok().json(&d)
 }
@@ -33,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     telemetry::init().await;
 
     // Initiatilize Kubernetes controller state
-    let state = State::default();
+    let state = neon_storage::controller::State::default();
     let neon_storage_controller = neon_storage::controller::run(state.clone());
 
     // Start web server

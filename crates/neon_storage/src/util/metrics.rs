@@ -1,4 +1,4 @@
-use crate::neon_storage::controller::NeonStorage;
+use crate::controllers::controller::NeonStorage;
 use crate::util::errors::Error;
 use kube::ResourceExt;
 use prometheus::{histogram_opts, opts, HistogramVec, IntCounter, IntCounterVec, Registry};

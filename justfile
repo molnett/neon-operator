@@ -7,16 +7,16 @@ install-crd: generate
   kubectl apply -f yaml/crd.yaml
 
 generate:
-  cargo run --bin crdgen > yaml/crd.yaml
+  cargo run -p crdgen > yaml/crd.yaml
   helm template charts/doc-controller > yaml/deployment.yaml
 
 # run with opentelemetry
 run-telemetry:
-  OPENTELEMETRY_ENDPOINT_URL=http://127.0.0.1:55680 RUST_LOG=info,kube=trace,controller=debug cargo run --features=telemetry
+  OPENTELEMETRY_ENDPOINT_URL=http://127.0.0.1:55680 RUST_LOG=info,kube=trace,controller=debug cargo run -o operator --features=telemetry
 
 # run without opentelemetry
 run:
-  RUST_LOG=info,kube=debug,controller=debug cargo run
+  RUST_LOG=info,kube=debug,controller=debug cargo run -p operator
 
 # format with nightly rustfmt
 fmt:
@@ -40,7 +40,7 @@ compile features="":
     -v $PWD:/volume \
     -w /volume \
     -t clux/muslrust:stable \
-    cargo build --release --features={{features}} --bin controller
+    cargo build --release --features={{features}} --p controller
   cp target/x86_64-unknown-linux-musl/release/controller .
 
 [private]

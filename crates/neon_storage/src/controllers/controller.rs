@@ -1,4 +1,4 @@
-use crate::neon_storage::storage_broker;
+use crate::controllers::{pageserver, safekeeper, storage_broker};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use kube::{
@@ -19,7 +19,7 @@ use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
 use tracing::*;
 
-use super::super::util::{errors, metrics, telemetry, Result};
+use crate::util::{errors, errors::{Result}, metrics, telemetry};
 
 pub static NEON_STORAGE_FINALIZER: &str = "neon-storage.oltp.molnett.org";
 
@@ -222,10 +222,34 @@ pub async fn reconcile(neon_storage: Arc<NeonStorage>, ctx: Arc<Context>) -> Res
     .map_err(|e| errors::Error::StdError(errors::StdError::FinalizerError(Box::new(e))));
 
     // first reconcile storage broker
-    match storage_broker::reconcile(neon_storage.clone(), ctx.clone()) {
-        Ok(action) => return Ok(action),
+    match storage_broker::reconcile(neon_storage.clone(), ctx.clone()).await {
+        Ok(_) => (),
         Err(e) => {
             error!("failed to reconcile storage broker: {}", e);
+            match e {
+                errors::Error::ErrorWithRequeue(error) => return Ok(Action::requeue(error.duration)),
+                other => return Ok(Action::await_change()),
+            }
+        }
+    }
+
+    // then reconcile safekeeper
+    match safekeeper::reconcile(neon_storage.clone(), ctx.clone()).await {
+        Ok(_) => (),
+        Err(e) => {
+            error!("failed to reconcile safekeeper: {}", e);
+            match e {
+                errors::Error::ErrorWithRequeue(error) => return Ok(Action::requeue(error.duration)),
+                other => return Ok(Action::await_change()),
+            }
+        }
+    }
+
+    // then reconcile pageserver
+    match pageserver::reconcile(neon_storage.clone(), ctx.clone()).await {
+        Ok(_) => (),
+        Err(e) => {
+            error!("failed to reconcile safekeeper: {}", e);
             match e {
                 errors::Error::ErrorWithRequeue(error) => return Ok(Action::requeue(error.duration)),
                 other => return Ok(Action::await_change()),

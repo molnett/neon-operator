@@ -5,15 +5,10 @@ metadata:
   namespace: neon
 data:
   pagerserver.toml: |
-    broker_endpoint = 'http://storage-broker-service.neon.svc.cluster.local:50051'
     pg_distrib_dir = '/usr/local/'
     listen_pg_addr = '0.0.0.0:6400'
     listen_http_addr = '0.0.0.0:9898'
 
-    [remote_storage]
-    bucket_name = "neon-test"
-    bucket_region = ""
-    endpoint = "http://minio.svc.neon.cluster.local"
     # Initial configuration file created by 'pageserver --init'
     #listen_pg_addr = '127.0.0.1:64000'
     #listen_http_addr = '127.0.0.1:9898'
@@ -88,9 +83,9 @@ spec:
           listen_pg_addr = "0.0.0.0:6400"
           broker_endpoint = "http://storage-broker-service.neon.svc.cluster.local:50051"
           [remote_storage]
-          bucket_name = "neon-test"
+          bucket_name = "neon-operator-jonathan"
           bucket_region = ""
-          endpoint = "http://minio.neon.svc.cluster.local"
+          endpoint = "https://fly.storage.tigris.dev"
         volumeMounts:
         - name: pageserver-storage
           mountPath: /data/.neon/tenants  # Adjust the mount path as needed
@@ -103,9 +98,9 @@ spec:
         - name: DEFAULT_PG_VERSION
           value: "15"
         - name: AWS_ACCESS_KEY_ID
-          value: "WkSaaeNbd8hQY3VrgTru"
+          value: "tid_ivljxsTRQDPDiUMkjRZOFQONHKXuUxfyRXzDrcDuAUQTAoRrjD"
         - name: AWS_SECRET_ACCESS_KEY
-          value: "7uySJgcgg17TQfMuAf1tLAwloCDdzKfHGZ2UeyD6"
+          value: "tsec_R+kZL1zeIuhpL78zd9MzxvhyFqqJhPMkwpaTjW1pL29UNttd5+E-v_ywEFUsbBIzFMM3er"
   volumeClaimTemplates:
   - metadata:
       name: pageserver-storage

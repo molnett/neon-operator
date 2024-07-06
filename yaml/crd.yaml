@@ -1,0 +1,94 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: neonstorages.oltp.molnett.org
+spec:
+  group: oltp.molnett.org
+  names:
+    categories: []
+    kind: NeonStorage
+    plural: neonstorages
+    shortNames:
+    - neonstorage
+    singular: neonstorage
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for NeonStorageSpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              Generate the Kubernetes wrapper struct `NeonStorage` from our Spec and Status struct
+
+              This provides a hook for generating the CRD yaml (in crdgen.rs)
+            properties:
+              hide:
+                type: boolean
+              page_server:
+                properties:
+                  id:
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                required:
+                - id
+                type: object
+              pg_version:
+                type: string
+              safekeeper:
+                properties:
+                  replicas:
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                required:
+                - replicas
+                type: object
+              storage_broker:
+                properties:
+                  replicas:
+                    format: uint32
+                    minimum: 0.0
+                    type: integer
+                required:
+                - replicas
+                type: object
+            required:
+            - hide
+            - page_server
+            - pg_version
+            - safekeeper
+            - storage_broker
+            type: object
+          status:
+            description: The status object of `NeonStorage`
+            nullable: true
+            properties:
+              hidden:
+                type: boolean
+              page_server_status:
+                description: The status object of `NeonStorage`
+                type: object
+              safekeeper_status:
+                description: The status object of `NeonStorage`
+                type: object
+              storage_broker_status:
+                description: The status object of `NeonStorage`
+                type: object
+            required:
+            - hidden
+            - page_server_status
+            - safekeeper_status
+            - storage_broker_status
+            type: object
+        required:
+        - spec
+        title: NeonStorage
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

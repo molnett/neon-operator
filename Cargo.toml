@@ -1,0 +1,5 @@
+[workspace]
+resolver = "2"
+members = [
+    'crates/crdgen', "crates/neon_storage", "crates/operator",
+]

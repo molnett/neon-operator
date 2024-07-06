@@ -1,0 +1,13 @@
+kind: NeonStorage
+apiVersion: oltp.molnett.org/v1
+metadata:
+  name: neon
+spec:
+  hide: false
+  page_server:
+    id: 1
+  pg_version: "15"
+  safekeeper:
+    replicas: 1
+  storage_broker:
+    replicas: 1

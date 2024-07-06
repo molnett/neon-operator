@@ -2,7 +2,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: neon-compute-spec
-  namespace: neon
 data:
   spec.json: |
     {
@@ -102,22 +101,22 @@ data:
               },
               {
                   "name": "neon.safekeepers",
-                  "value": "safekeeper-0.safekeeper:5454,safekeeper-1.safekeeper:5454,safekeeper-2.safekeeper:5454",
+                  "value": "safekeeper-neon-0:5454,safekeeper-neon-1:5454,safekeeper-neon-2:5454",
                   "vartype": "string"
               },
               {
                   "name": "neon.timeline_id",
-                  "value": "3858f62230ac3c915f300c664312c63f",
+                  "value": "4bbb408fc48c3a9c4d8510f0648b39ad",
                   "vartype": "string"
               },
               {
                   "name": "neon.tenant_id",
-                  "value": "332e49811572ca79ddbcd21b2d58ed3e",
+                  "value": "9ef87a5bf0d92544f6fafeeb3239695c",
                   "vartype": "string"
               },
               {
                   "name": "neon.pageserver_connstring",
-                  "value": "host=pageserver-0.pageserver port=6400",
+                  "value": "host=pageserver-neon port=6400",
                   "vartype": "string"
               },
               {
@@ -137,9 +136,9 @@ data:
       ],
 
       "safekeeper_connstrings": [
-        "postgresql://postgres:@safekeeper-0.safekeeper:5454",
-        "postgresql://postgres:@safekeeper-1.safekeeper:5454",
-        "postgresql://postgres:@safekeeper-2.safekeeper:5454"
+        "postgresql://postgres:@safekeeper-neon-0:5454",
+        "postgresql://postgres:@safekeeper-neon-1:5454",
+        "postgresql://postgres:@safekeeper-neon-2:5454"
       ]
     }
 
@@ -148,7 +147,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: compute-node
-  namespace: neon
 spec:
   replicas: 1
   selector:
@@ -161,7 +159,7 @@ spec:
     spec:
       containers:
       - name: storage-broker
-        image: localhost:5001/neon-compute-node:pg15
+        image: neondatabase/compute-node-v15
         args:
         - "--pgdata"
         - "/.neon/data/pgdata"

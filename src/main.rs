@@ -1,8 +1,8 @@
 #![allow(unused_imports, unused_variables)]
 use actix_web::{get, middleware, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder};
 
-mod neon_storage;
-use neon_storage::controller;
+mod neon_cluster;
+use neon_cluster::controller;
 
 mod util;
 use util::telemetry;
@@ -10,7 +10,7 @@ use util::telemetry;
 use prometheus::{Encoder, TextEncoder};
 
 #[get("/metrics")]
-async fn metrics(c: Data<neon_storage::controller::State>, _req: HttpRequest) -> impl Responder {
+async fn metrics(c: Data<neon_cluster::controller::State>, _req: HttpRequest) -> impl Responder {
     let metrics = c.metrics();
     let encoder = TextEncoder::new();
     let mut buffer = vec![];
@@ -24,7 +24,7 @@ async fn health(_: HttpRequest) -> impl Responder {
 }
 
 #[get("/")]
-async fn index(c: Data<neon_storage::controller::State>, _req: HttpRequest) -> impl Responder {
+async fn index(c: Data<neon_cluster::controller::State>, _req: HttpRequest) -> impl Responder {
     let d = c.diagnostics().await;
     HttpResponse::Ok().json(&d)
 }
@@ -34,8 +34,8 @@ async fn main() -> anyhow::Result<()> {
     telemetry::init().await;
 
     // Initiatilize Kubernetes controller state
-    let state = neon_storage::controller::State::default();
-    let neon_storage_controller = neon_storage::controller::run(state.clone());
+    let state = neon_cluster::controller::State::default();
+    let neon_cluster_controller = neon_cluster::controller::run(state.clone());
 
     // Start web server
     let server = HttpServer::new(move || {
@@ -50,6 +50,6 @@ async fn main() -> anyhow::Result<()> {
     .shutdown_timeout(5);
 
     // Both runtimes implements graceful shutdown, so poll until both are done
-    tokio::join!(neon_storage_controller, server.run()).1?;
+    tokio::join!(neon_cluster_controller, server.run()).1?;
     Ok(())
 }

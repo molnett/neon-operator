@@ -16,8 +16,11 @@ pub enum StdError {
     // so boxing this error to break cycles
     FinalizerError(#[source] Box<kube::runtime::finalizer::Error<Error>>),
 
-    #[error("IllegalDocument")]
-    IllegalDocument,
+    #[error("Missing Bucket Config")]
+    MissingBucketConfig,
+
+    #[error("Conflicting Bucket Config: {0}")]
+    ConflictingBucketConfig(String),
 }
 
 impl StdError {
@@ -62,6 +65,8 @@ pub enum Error {
 
 impl Error {
     pub fn metric_label(&self) -> String {
-        self.metric_label()
+        self.to_string()
     }
 }
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;

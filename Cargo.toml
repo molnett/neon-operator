@@ -17,10 +17,6 @@ doc = false
 name = "crdgen"
 path = "src/crdgen.rs"
 
-[lib]
-name = "controller"
-path = "src/lib.rs"
-
 [features]
 default = []
 telemetry = ["tonic", "opentelemetry-otlp"]
@@ -40,7 +36,9 @@ tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
 tracing-opentelemetry = "0.20.0"
 opentelemetry = { version = "0.20.0", features = ["trace", "rt-tokio"] }
-opentelemetry-otlp = { version = "0.13.0", features = ["tokio"], optional = true }
+opentelemetry-otlp = { version = "0.13.0", features = [
+    "tokio",
+], optional = true }
 tonic = { version = "0.9", optional = true }
 thiserror = "1.0.47"
 anyhow = "1.0.75"
@@ -52,7 +50,7 @@ hyper = "0.14.27"
 tower-test = "0.4.0"
 
 [dependencies.kube]
-features = ["runtime", "client", "derive" ]
+features = ["runtime", "client", "derive"]
 version = "0.87.1"
 
 # testing new releases - ignore

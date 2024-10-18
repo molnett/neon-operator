@@ -1,4 +1,4 @@
-use crate::neon_storage::controller::NeonStorage;
+use crate::neon_cluster::controller::NeonCluster;
 use crate::util::errors::Error;
 use kube::ResourceExt;
 use prometheus::{histogram_opts, opts, HistogramVec, IntCounter, IntCounterVec, Registry};
@@ -49,7 +49,7 @@ impl Metrics {
         Ok(self)
     }
 
-    pub fn reconcile_failure(&self, neon_storage: &NeonStorage, e: &Error) {
+    pub fn reconcile_failure(&self, neon_storage: &NeonCluster, e: &Error) {
         self.failures
             .with_label_values(&[neon_storage.name_any().as_ref(), e.metric_label().as_ref()])
             .inc()

@@ -40,8 +40,8 @@ compile features="":
     -v $PWD:/volume \
     -w /volume \
     -t clux/muslrust:stable \
-    cargo build --release --features={{features}} --bin controller
-  cp target/x86_64-unknown-linux-musl/release/controller .
+    cargo build --release --features={{features}} --bin neon-operator
+  cp target/x86_64-unknown-linux-musl/release/neon-operator .
 
 [private]
 _build features="":

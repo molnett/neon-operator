@@ -1,55 +1,75 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: documents.kube.rs
+  name: neonclusters.oltp.molnett.org
 spec:
-  group: kube.rs
+  group: oltp.molnett.org
   names:
     categories: []
-    kind: Document
-    plural: documents
+    kind: NeonCluster
+    plural: neonclusters
     shortNames:
-    - doc
-    singular: document
+      - neoncluster
+    singular: neoncluster
   scope: Namespaced
   versions:
-  - additionalPrinterColumns: []
-    name: v1
-    schema:
-      openAPIV3Schema:
-        description: Auto-generated derived type for DocumentSpec via `CustomResource`
-        properties:
-          spec:
-            description: |-
-              Generate the Kubernetes wrapper struct `Document` from our Spec and Status struct
+    - additionalPrinterColumns: []
+      name: v1
+      schema:
+        openAPIV3Schema:
+          description: Auto-generated derived type for NeonClusterSpec via `CustomResource`
+          properties:
+            spec:
+              description: |-
+                Generate the Kubernetes wrapper struct `NeonCluster` from our Spec and Status struct
 
-              This provides a hook for generating the CRD yaml (in crdgen.rs)
-            properties:
-              content:
-                type: string
-              hide:
-                type: boolean
-              title:
-                type: string
-            required:
-            - content
-            - hide
-            - title
-            type: object
-          status:
-            description: The status object of `Document`
-            nullable: true
-            properties:
-              hidden:
-                type: boolean
-            required:
-            - hidden
-            type: object
-        required:
-        - spec
-        title: Document
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
+                This provides a hook for generating the CRD yaml (in crdgen.rs)
+              properties:
+                default_pg_version:
+                  default: PG15
+                  enum:
+                    - PG14
+                    - PG15
+                    - PG16
+                  type: string
+                minio_bucket_secret:
+                  nullable: true
+                  type: string
+                neon_image:
+                  nullable: true
+                  type: string
+                num_safekeepers:
+                  default: 3
+                  format: uint8
+                  minimum: 0.0
+                  type: integer
+                rook_bucket_object:
+                  nullable: true
+                  type: string
+              type: object
+            status:
+              description: The status object of `NeonCluster`
+              nullable: true
+              properties:
+                page_server_status:
+                  description: The status object of `NeonCluster`
+                  type: object
+                safekeeper_status:
+                  description: The status object of `NeonCluster`
+                  type: object
+                storage_broker_status:
+                  description: The status object of `NeonCluster`
+                  type: object
+              required:
+                - page_server_status
+                - safekeeper_status
+                - storage_broker_status
+              type: object
+          required:
+            - spec
+          title: NeonCluster
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}

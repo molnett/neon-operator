@@ -1,0 +1,7 @@
+apiVersion: oltp.molnett.org/v1
+kind: NeonCluster
+metadata:
+  name: cluster1
+  namespace: neon
+spec:
+  bucket_credentials_secret: neon-bucket

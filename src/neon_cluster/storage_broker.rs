@@ -1,4 +1,4 @@
-use crate::neon_storage::controller::{Context, NeonStorage};
+use crate::neon_cluster::controller::{Context, NeonCluster};
 use crate::util::errors::{Error, ErrorWithRequeue, StdError};
 use kube::{
     api::{Api, ListParams, Patch, PatchParams, ResourceExt},
@@ -14,10 +14,6 @@ use kube::{
 use std::sync::Arc;
 use tokio::time::Duration;
 
-pub fn reconcile(neon_storage: Arc<NeonStorage>, ctx: Arc<Context>) -> Result<Action, Error> {
-    return Err(Error::ErrorWithRequeue(ErrorWithRequeue::new(
-        StdError::IllegalDocument,
-        Duration::from_secs(5 * 60),
-    )));
-    // Ok(Action::requeue(Duration::from_secs(5 * 60)))
+pub fn reconcile(neon_cluster: Arc<NeonCluster>, ctx: Arc<Context>) -> Result<Action, Error> {
+    Ok(Action::requeue(Duration::from_secs(5 * 60)))
 }

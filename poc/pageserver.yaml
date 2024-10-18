@@ -1,19 +1,21 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: pagerserver-config
+  name: pageserver-config
   namespace: neon
 data:
-  pagerserver.toml: |
+  identity.toml: |
+    id=1234
+  pageserver.toml: |
     broker_endpoint = 'http://storage-broker-service.neon.svc.cluster.local:50051'
     pg_distrib_dir = '/usr/local/'
     listen_pg_addr = '0.0.0.0:6400'
     listen_http_addr = '0.0.0.0:9898'
 
     [remote_storage]
-    bucket_name = "neon-test"
-    bucket_region = ""
-    endpoint = "http://minio.svc.neon.cluster.local"
+    bucket_name = "neon"
+    bucket_region = "eu-north-1"
+    endpoint = "http://minio.neon.svc.cluster.local"
     # Initial configuration file created by 'pageserver --init'
     #listen_pg_addr = '127.0.0.1:64000'
     #listen_http_addr = '127.0.0.1:9898'
@@ -75,45 +77,47 @@ spec:
         app: pageserver
     spec:
       containers:
-      - name: pageserver
-        imagePullPolicy: Always
-        image: localhost:5001/neon:latest
-        command:
-          # - "/bin/bash"
-          # - "-c"
-          # - "sleep 120"
-        - "/usr/local/bin/pageserver"
-        - '-c'
-        - |
-          listen_pg_addr = "0.0.0.0:6400"
-          broker_endpoint = "http://storage-broker-service.neon.svc.cluster.local:50051"
-          [remote_storage]
-          bucket_name = "neon-test"
-          bucket_region = ""
-          endpoint = "http://minio.neon.svc.cluster.local"
-        volumeMounts:
-        - name: pageserver-storage
-          mountPath: /data/.neon/tenants  # Adjust the mount path as needed
-        ports:
-        - containerPort: 6400
-        - containerPort: 9898
-        env:
-        - name: RUST_LOG
-          value: "debug"
-        - name: DEFAULT_PG_VERSION
-          value: "15"
-        - name: AWS_ACCESS_KEY_ID
-          value: "WkSaaeNbd8hQY3VrgTru"
-        - name: AWS_SECRET_ACCESS_KEY
-          value: "7uySJgcgg17TQfMuAf1tLAwloCDdzKfHGZ2UeyD6"
+        - name: pageserver
+          imagePullPolicy: Always
+          image: neondatabase/neon:latest
+          command:
+            # - "/bin/bash"
+            # - "-c"
+            # - "sleep 120"
+            - "/usr/local/bin/pageserver"
+          volumeMounts:
+            - name: pageserver-storage
+              mountPath: /data/.neon/tenants # Adjust the mount path as needed
+            - name: pageserver-config
+              mountPath: /data/.neon/pageserver.toml
+              subPath: pageserver.toml
+            - name: pageserver-config
+              mountPath: /data/.neon/identity.toml
+              subPath: identity.toml
+          ports:
+            - containerPort: 6400
+            - containerPort: 9898
+          env:
+            - name: RUST_LOG
+              value: "debug"
+            - name: DEFAULT_PG_VERSION
+              value: "16"
+            - name: AWS_ACCESS_KEY_ID
+              value: "neon"
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "neonneon"
+      volumes:
+        - name: pageserver-config
+          configMap:
+            name: pageserver-config
   volumeClaimTemplates:
-  - metadata:
-      name: pageserver-storage
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      resources:
-        requests:
-          storage: 10Gi
+    - metadata:
+        name: pageserver-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
 ---
 apiVersion: v1
 kind: Service
@@ -125,6 +129,6 @@ spec:
   selector:
     app: pageserver
   ports:
-  - protocol: TCP
-    port:  6400
-    targetPort: 6400
+    - protocol: TCP
+      port: 6400
+      targetPort: 6400

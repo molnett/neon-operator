@@ -14,14 +14,14 @@ spec:
         app: storage-broker
     spec:
       containers:
-      - name: storage-broker
-        image: localhost:5001/neon:latest
-        command:
-        - "/usr/local/bin/storage_broker"
-        args:
-        - "--listen-addr=0.0.0.0:50051"
-        ports:
-        - containerPort: 50051
+        - name: storage-broker
+          image: neondatabase/neon:latest
+          command:
+            - "/usr/local/bin/storage_broker"
+          args:
+            - "--listen-addr=0.0.0.0:50051"
+          ports:
+            - containerPort: 50051
 ---
 apiVersion: v1
 kind: Service
@@ -32,6 +32,6 @@ spec:
   selector:
     app: storage-broker
   ports:
-  - protocol: TCP
-    port: 50051
-    targetPort: 50051
+    - protocol: TCP
+      port: 50051
+      targetPort: 50051

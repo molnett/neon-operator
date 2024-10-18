@@ -1,8 +1,9 @@
-use crate::neon_storage::controller::NeonStorage;
+use crate::neon_cluster::controller::NeonCluster;
 use kube::CustomResourceExt;
 
-pub mod neon_storage;
+pub mod neon_cluster;
+mod util;
 
 fn main() {
-    print!("{}", serde_yaml::to_string(&NeonStorage::crd()).unwrap())
+    print!("{}", serde_yaml::to_string(&NeonCluster::crd()).unwrap())
 }

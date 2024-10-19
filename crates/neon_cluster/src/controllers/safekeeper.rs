@@ -2,26 +2,27 @@ use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EnvVar, EnvVarSource, ObjectFieldSelector,
-    PodSpec, PodTemplateSpec, Service, ServicePort, ServiceSpec,
+    Container, ContainerPort, EnvVar, EnvVarSource, ObjectFieldSelector, PodSpec, PodTemplateSpec, Service,
+    ServicePort, ServiceSpec,
 };
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta, OwnerReference};
 
 use kube::runtime::controller::Action;
 use kube::{
-    Api, Client, Resource, ResourceExt,
     api::{ListParams, Patch, PatchParams, PostParams},
+    Api, Client, Resource, ResourceExt,
 };
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::time::Duration;
-use tracing::{error, info, warn, instrument};
+use tracing::{error, info, instrument, warn};
 
-use super::controller::{Context, NeonStorage};
+use super::cluster_controller::Context;
+use super::resources::*;
 
-pub async fn reconcile(neon_storage: Arc<NeonStorage>, ctx: Arc<Context>) -> Result<Action> {
-    let name = match &neon_storage.metadata.name {
+pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<Action> {
+    let name = match &neon_cluster.metadata.name {
         Some(name) => format!("safekeeper-{}", name),
         None => {
             return Err(Error::ErrorWithRequeue(ErrorWithRequeue::new(
@@ -31,18 +32,33 @@ pub async fn reconcile(neon_storage: Arc<NeonStorage>, ctx: Arc<Context>) -> Res
         }
     };
 
-    let ns = neon_storage.namespace().unwrap_or_default();
+    let ns = neon_cluster.namespace().unwrap_or_default();
     info!("Reconciling StatefulSet '{}' in namespace '{}'", name, ns);
 
-    reconcile_statefulset(&ctx.client, &ns, &name, &neon_storage.metadata.name.clone().unwrap()).await?;
-    reconcile_services(&ctx.client, &ns, &name).await?;
+    let oref = neon_cluster.controller_owner_ref(&()).unwrap();
+
+    reconcile_statefulset(
+        &ctx.client,
+        &ns,
+        &name,
+        &neon_cluster.metadata.name.clone().unwrap(),
+        &oref,
+    )
+    .await?;
+    reconcile_services(&ctx.client, &ns, &name, &oref).await?;
 
     Ok(Action::requeue(Duration::from_secs(300)))
 }
 
-async fn reconcile_statefulset(client: &Client, namespace: &str, name: &str, cluster_name: &str) -> Result<()> {
+async fn reconcile_statefulset(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+    cluster_name: &str,
+    oref: &OwnerReference,
+) -> Result<()> {
     let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
-    let desired_statefulset = create_desired_statefulset(namespace, name, cluster_name);
+    let desired_statefulset = create_desired_statefulset(namespace, name, cluster_name, oref);
 
     match statefulsets.get(name).await {
         Ok(existing) => {
@@ -73,21 +89,30 @@ async fn reconcile_statefulset(client: &Client, namespace: &str, name: &str, clu
     Ok(())
 }
 
-async fn reconcile_services(client: &Client, namespace: &str, name: &str) -> Result<()> {
+async fn reconcile_services(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+    oref: &OwnerReference,
+) -> Result<()> {
     let services: Api<Service> = Api::namespaced(client.clone(), namespace);
     let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
 
-    let statefulset = statefulsets.get(name).await
+    let statefulset = statefulsets
+        .get(name)
+        .await
         .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 
-    let replicas = statefulset.spec.as_ref()
+    let replicas = statefulset
+        .spec
+        .as_ref()
         .and_then(|spec| spec.replicas)
         .unwrap_or(1);
 
     for i in 0..replicas {
         let pod_name = format!("{}-{}", name, i);
         let service_name = format!("{}-{}", name, i);
-        let desired_service = create_desired_service(namespace, &service_name, &pod_name);
+        let desired_service = create_desired_service(namespace, &service_name, &pod_name, oref);
 
         match services.get(&service_name).await {
             Ok(existing) => {
@@ -119,14 +144,18 @@ async fn reconcile_services(client: &Client, namespace: &str, name: &str) -> Res
     Ok(())
 }
 
-fn create_desired_service(namespace: &str, name: &str, pod_name: &str) -> Service {
+fn create_desired_service(namespace: &str, name: &str, pod_name: &str, oref: &OwnerReference) -> Service {
     let mut selector = BTreeMap::new();
-    selector.insert("statefulset.kubernetes.io/pod-name".to_string(), pod_name.to_string());
+    selector.insert(
+        "statefulset.kubernetes.io/pod-name".to_string(),
+        pod_name.to_string(),
+    );
 
     Service {
         metadata: ObjectMeta {
             name: Some(name.to_string()),
             namespace: Some(namespace.to_string()),
+            owner_references: Some(vec![oref.clone()]),
             ..Default::default()
         },
         spec: Some(ServiceSpec {
@@ -135,14 +164,18 @@ fn create_desired_service(namespace: &str, name: &str, pod_name: &str) -> Servic
                 ServicePort {
                     name: Some("pg".to_string()),
                     port: 5454,
-                    target_port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(5454)),
+                    target_port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(
+                        5454,
+                    )),
                     protocol: Some("TCP".to_string()),
                     ..Default::default()
                 },
                 ServicePort {
                     name: Some("http".to_string()),
                     port: 7676,
-                    target_port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(7676)),
+                    target_port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(
+                        7676,
+                    )),
                     protocol: Some("TCP".to_string()),
                     ..Default::default()
                 },
@@ -153,7 +186,12 @@ fn create_desired_service(namespace: &str, name: &str, pod_name: &str) -> Servic
     }
 }
 
-fn create_desired_statefulset(namespace: &str, name: &str, cluster_name: &str) -> StatefulSet {
+fn create_desired_statefulset(
+    namespace: &str,
+    name: &str,
+    cluster_name: &str,
+    oref: &OwnerReference,
+) -> StatefulSet {
     let mut labels = BTreeMap::new();
     labels.insert("app.kubernetes.io/name".to_string(), "safekeeper".to_string());
 
@@ -167,6 +205,7 @@ fn create_desired_statefulset(namespace: &str, name: &str, cluster_name: &str) -
             name: Some(name.to_string()),
             namespace: Some(namespace.to_string()),
             labels: Some(labels.clone()),
+            owner_references: Some(vec![oref.clone()]),
             ..Default::default()
         },
         spec: Some(StatefulSetSpec {
@@ -184,12 +223,9 @@ fn create_desired_statefulset(namespace: &str, name: &str, cluster_name: &str) -
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: "safekeeper".to_string(),
-                        image: Some("neondatabase/neon:latest".to_string()),
+                        image: Some("neondatabase/neon:6351-bookworm".to_string()),
                         command: Some(vec!["/bin/bash".to_string()]),
-                        args: Some(vec![
-                            "-c".to_string(),
-                            safekeeper_command
-                        ]),
+                        args: Some(vec!["-c".to_string(), safekeeper_command]),
                         ports: Some(vec![
                             ContainerPort {
                                 container_port: 5454,

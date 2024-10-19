@@ -1,4 +1,4 @@
-kind: NeonStorage
+kind: NeonCluster
 apiVersion: oltp.molnett.org/v1
 metadata:
   name: neon

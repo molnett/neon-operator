@@ -62,7 +62,7 @@ pub enum Error {
 
 impl Error {
     pub fn metric_label(&self) -> String {
-        self.metric_label()
+        format!("{self:?}").to_lowercase()
     }
 }
 

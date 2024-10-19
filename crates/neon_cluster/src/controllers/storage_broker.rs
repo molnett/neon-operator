@@ -1,6 +1,17 @@
-use crate::{controllers::controller::{Context, NeonStorage}, util::errors::{self, Error, ErrorWithRequeue, Result, StdError}};
+use crate::{
+    controllers::cluster_controller::Context,
+    util::errors::{self, Error, ErrorWithRequeue, Result, StdError},
+};
 
-use k8s_openapi::{api::{apps::v1::{Deployment, DeploymentSpec}, core::v1::{Container, ContainerPort, PodSpec, PodTemplateSpec, Service, ServicePort, ServiceSpec}}, apimachinery::pkg::apis::meta::v1::LabelSelector};
+use super::resources::*;
+
+use k8s_openapi::{
+    api::{
+        apps::v1::{Deployment, DeploymentSpec},
+        core::v1::{Container, ContainerPort, PodSpec, PodTemplateSpec, Service, ServicePort, ServiceSpec},
+    },
+    apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference},
+};
 use kube::{
     api::{Api, ListParams, ObjectMeta, Patch, PatchParams, PostParams, ResourceExt},
     client::Client,
@@ -12,12 +23,12 @@ use kube::{
     },
     CustomResource, Resource,
 };
-use tracing::info;
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::time::Duration;
+use tracing::info;
 
-pub async fn reconcile(neon_storage: Arc<NeonStorage>, ctx: Arc<Context>) -> Result<Action> {
-    let name = match &neon_storage.metadata.name {
+pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<Action> {
+    let name = match &neon_cluster.metadata.name {
         Some(name) => format!("storage-broker-{}", name),
         None => {
             return Err(Error::ErrorWithRequeue(ErrorWithRequeue::new(
@@ -27,19 +38,26 @@ pub async fn reconcile(neon_storage: Arc<NeonStorage>, ctx: Arc<Context>) -> Res
         }
     };
 
-    let ns = neon_storage.metadata.namespace.clone().unwrap();
+    let ns = neon_cluster.metadata.namespace.clone().unwrap();
 
     info!("Reconciling Storage Broker '{}' in namespace '{}'", name, ns);
 
-    reconcile_deployment(&ctx.client, &ns, &name).await?;
-    reconcile_service(&ctx.client, &ns, &name).await?;
+    let oref = neon_cluster.controller_owner_ref(&()).unwrap();
 
-    return Ok(Action::requeue(Duration::from_secs(5 * 60)))
+    reconcile_deployment(&ctx.client, &ns, &name, &oref).await?;
+    reconcile_service(&ctx.client, &ns, &name, &oref).await?;
+
+    return Ok(Action::requeue(Duration::from_secs(5 * 60)));
 }
 
-async fn reconcile_deployment(client: &Client, namespace: &str, name: &str) -> Result<()> {
+async fn reconcile_deployment(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+    oref: &OwnerReference,
+) -> Result<()> {
     let deployments: Api<Deployment> = Api::namespaced(client.clone(), namespace);
-    let desired_deployment = create_desired_deployment(namespace, name);
+    let desired_deployment = create_desired_deployment(namespace, name, oref);
 
     match deployments.get(name).await {
         Ok(existing) => {
@@ -70,11 +88,15 @@ async fn reconcile_deployment(client: &Client, namespace: &str, name: &str) -> R
     Ok(())
 }
 
-
-async fn reconcile_service(client: &Client, namespace: &str, name: &str) -> Result<()> {
+async fn reconcile_service(
+    client: &Client,
+    namespace: &str,
+    name: &str,
+    oref: &OwnerReference,
+) -> Result<()> {
     let services: Api<Service> = Api::namespaced(client.clone(), namespace);
     let service_name = format!("{}", name);
-    let desired_service = create_desired_service(namespace, &service_name);
+    let desired_service = create_desired_service(namespace, &service_name, oref);
 
     match services.get(&service_name).await {
         Ok(existing) => {
@@ -105,7 +127,7 @@ async fn reconcile_service(client: &Client, namespace: &str, name: &str) -> Resu
     Ok(())
 }
 
-fn create_desired_deployment(namespace: &str, name: &str) -> Deployment {
+fn create_desired_deployment(namespace: &str, name: &str, oref: &OwnerReference) -> Deployment {
     let mut labels = BTreeMap::new();
     labels.insert("app.kubernetes.io/name".to_string(), name.to_string());
 
@@ -114,6 +136,7 @@ fn create_desired_deployment(namespace: &str, name: &str) -> Deployment {
             name: Some(name.to_string()),
             namespace: Some(namespace.to_string()),
             labels: Some(labels.clone()),
+            owner_references: Some(vec![oref.clone()]),
             ..Default::default()
         },
         spec: Some(DeploymentSpec {
@@ -130,7 +153,7 @@ fn create_desired_deployment(namespace: &str, name: &str) -> Deployment {
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: "storage-broker".to_string(),
-                        image: Some("neondatabase/neon:latest".to_string()),
+                        image: Some("neondatabase/neon:6351-bookworm".to_string()),
                         command: Some(vec!["/usr/local/bin/storage_broker".to_string()]),
                         args: Some(vec!["--listen-addr=0.0.0.0:50051".to_string()]),
                         ports: Some(vec![ContainerPort {
@@ -148,7 +171,7 @@ fn create_desired_deployment(namespace: &str, name: &str) -> Deployment {
     }
 }
 
-fn create_desired_service(namespace: &str, name: &str) -> Service {
+fn create_desired_service(namespace: &str, name: &str, oref: &OwnerReference) -> Service {
     let mut selector = BTreeMap::new();
     selector.insert("app.kubernetes.io/name".to_string(), name.to_string());
 
@@ -156,13 +179,16 @@ fn create_desired_service(namespace: &str, name: &str) -> Service {
         metadata: ObjectMeta {
             name: Some(name.to_string()),
             namespace: Some(namespace.to_string()),
+            owner_references: Some(vec![oref.clone()]),
             ..Default::default()
         },
         spec: Some(ServiceSpec {
             selector: Some(selector),
             ports: Some(vec![ServicePort {
                 port: 50051,
-                target_port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(50051)),
+                target_port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(
+                    50051,
+                )),
                 protocol: Some("TCP".to_string()),
                 ..Default::default()
             }]),
@@ -189,6 +215,5 @@ fn service_needs_update(existing: &Service, desired: &Service) -> bool {
     let existing_spec = existing.spec.as_ref().unwrap();
     let desired_spec = desired.spec.as_ref().unwrap();
 
-    existing_spec.selector != desired_spec.selector
-        || existing_spec.ports != desired_spec.ports
+    existing_spec.selector != desired_spec.selector || existing_spec.ports != desired_spec.ports
 }

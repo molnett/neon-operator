@@ -1,0 +1,11 @@
+kind: NeonProject
+apiVersion: oltp.molnett.org/v1
+metadata:
+  name: molnett-project
+spec:
+  cluster_name: cluster1
+  id: molnett-project
+  name: molnett-project
+  pg_version: "PG16"
+  superuser_name: molnett
+  default_database_name: molnett

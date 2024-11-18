@@ -28,6 +28,8 @@ use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
 use tracing::*;
 
+pub const FIELD_MANAGER: &str = "neon-project-controller";
+
 impl NeonProject {
     // Reconcile (for non-finalizer related changes)
     async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action, errors::Error> {

@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use super::cluster_controller::Context;
+use super::project_controller::FIELD_MANAGER;
 use super::resources::{NeonProject, NeonProjectStatus};
 use crate::util::errors::{Error, Result, StdError};
 
@@ -53,7 +54,7 @@ pub async fn update_status(
     }));
 
     projects
-        .patch_status(name, &PatchParams::default(), &patch)
+        .patch_status(name, &PatchParams::apply(FIELD_MANAGER), &patch)
         .await
         .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 

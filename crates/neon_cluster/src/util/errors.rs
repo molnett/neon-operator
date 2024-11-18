@@ -18,6 +18,9 @@ pub enum StdError {
 
     #[error("IllegalDocument")]
     IllegalDocument,
+
+    #[error("InvalidArgument: {0}")]
+    InvalidArgument(&'static str),
 }
 
 impl StdError {

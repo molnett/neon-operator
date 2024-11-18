@@ -1,11 +1,11 @@
 use super::branch::{
-    create_default_database, create_default_user, ensure_config_map, ensure_deployment,
-    is_compute_node_ready, is_condition_met, update_status, DEFAULT_DATABASE_CREATED_CONDITION,
-    DEFAULT_USER_CREATED_CONDITION,
+    create_default_database, ensure_config_map, ensure_deployment, get_or_create_default_user,
+    is_compute_node_ready, update_status, DEFAULT_DATABASE_CREATED_CONDITION, DEFAULT_USER_CREATED_CONDITION,
 };
 use super::resources::*;
 use crate::controllers::{branch, pageserver, project, safekeeper, storage_broker};
 use crate::util::errors::{Error, StdError};
+use crate::util::status::is_status_condition_true;
 use crate::util::{errors, errors::Result, metrics, telemetry};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
@@ -33,6 +33,8 @@ use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
 use tracing::*;
 
+pub const FIELD_MANAGER: &str = "neon-branch-controller";
+
 impl NeonBranch {
     // Reconcile (for non-finalizer related changes)
     async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action, errors::Error> {
@@ -49,7 +51,7 @@ impl NeonBranch {
         {
             Some(project) => project,
             None => {
-                update_status(&client, &namespace, &name, false).await?;
+                update_status(&client, &namespace, &name, self, false).await?;
                 return Ok(Action::requeue(Duration::from_secs(15)));
             }
         };
@@ -114,16 +116,22 @@ impl NeonBranch {
         let compute_node_ready = is_compute_node_ready(&client, &namespace, &name).await?;
 
         // Update status
-        update_status(&client, &namespace, &name, compute_node_ready).await?;
+        update_status(&client, &namespace, &name, self, compute_node_ready).await?;
 
         if compute_node_ready {
             // Create default user and database if not already created
-            if !is_condition_met(&self, DEFAULT_USER_CREATED_CONDITION) {
-                create_default_user(&client, &namespace, &name, &self).await?;
+            if !is_status_condition_true(
+                &self.status.as_ref().unwrap().conditions,
+                DEFAULT_USER_CREATED_CONDITION,
+            ) {
+                get_or_create_default_user(&client, &namespace, &name, self).await?;
             }
 
-            if !is_condition_met(&self, DEFAULT_DATABASE_CREATED_CONDITION) {
-                create_default_database(&client, &namespace, &name, &self).await?;
+            if !is_status_condition_true(
+                &self.status.as_ref().unwrap().conditions,
+                DEFAULT_DATABASE_CREATED_CONDITION,
+            ) {
+                create_default_database(&client, &namespace, &name, self).await?;
             }
         }
 

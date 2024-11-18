@@ -42,7 +42,16 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
 
     info!("Reconciling Storage Broker '{}' in namespace '{}'", name, ns);
 
-    let oref = neon_cluster.controller_owner_ref(&()).unwrap();
+    let oref = neon_cluster
+        .controller_owner_ref(&())
+        .unwrap_or_else(|| OwnerReference {
+            api_version: "oltp.molnett.org/v1".to_string(),
+            kind: "NeonCluster".to_string(),
+            controller: Some(true),
+            name: neon_cluster.metadata.name.clone().unwrap(),
+            uid: format!("deployment-{}", neon_cluster.metadata.name.clone().unwrap()),
+            ..Default::default()
+        });
 
     reconcile_deployment(&ctx.client, &ns, &name, &oref).await?;
     reconcile_service(&ctx.client, &ns, &name, &oref).await?;

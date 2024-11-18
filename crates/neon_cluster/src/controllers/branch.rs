@@ -1,9 +1,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use super::branch_controller::FIELD_MANAGER;
 use super::cluster_controller::Context;
 use super::resources::{NeonBranch, NeonBranchStatus, NeonProject};
 use crate::util::errors::{Error, Result, StdError};
+use crate::util::status::set_status_condition;
 
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{
@@ -102,59 +104,50 @@ pub async fn update_status(
     client: &kube::Client,
     namespace: &str,
     name: &str,
+    branch: &NeonBranch,
     compute_node_ready: bool,
 ) -> Result<()> {
     let branch_client: Api<NeonBranch> = Api::namespaced(client.clone(), namespace);
-    let status = if compute_node_ready {
-        NeonBranchStatus {
-            conditions: vec![Condition {
-                type_: COMPUTE_NODE_READY_CONDITION.to_string(),
-                status: compute_node_ready.to_string(),
-                last_transition_time: Time(chrono::Utc::now()),
-                message: "Compute node is ready".to_string(),
-                reason: "ComputeNodeStarted".to_string(),
-                observed_generation: None,
-            }],
+
+    let condition = if compute_node_ready {
+        Condition {
+            type_: COMPUTE_NODE_READY_CONDITION.to_string(),
+            status: compute_node_ready.to_string(),
+            last_transition_time: Time(chrono::Utc::now()),
+            message: "Compute node is ready".to_string(),
+            reason: "ComputeNodeStarted".to_string(),
+            observed_generation: None,
         }
     } else {
-        NeonBranchStatus {
-            conditions: vec![Condition {
-                type_: COMPUTE_NODE_READY_CONDITION.to_string(),
-                status: "False".to_string(),
-                last_transition_time: Time(chrono::Utc::now()),
-                message: "Compute node is not ready".to_string(),
-                reason: "ComputeNodeNotReady".to_string(),
-                observed_generation: None,
-            }],
+        Condition {
+            type_: COMPUTE_NODE_READY_CONDITION.to_string(),
+            status: "False".to_string(),
+            last_transition_time: Time(chrono::Utc::now()),
+            message: "Compute node is not ready".to_string(),
+            reason: "ComputeNodeNotReady".to_string(),
+            observed_generation: None,
         }
     };
 
-    let patch = Patch::Merge(json!({
-        "status": status
-    }));
+    let (conditions, changed) = set_status_condition(&branch.status.as_ref().unwrap().conditions, condition);
 
-    branch_client
-        .patch_status(name, &PatchParams::default(), &patch)
-        .await
-        .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+    if changed {
+        let patch = Patch::Merge(json!({
+            "status": {
+                "conditions": conditions
+            }
+        }));
+
+        branch_client
+            .patch_status(name, &PatchParams::apply(FIELD_MANAGER), &patch)
+            .await
+            .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+    }
 
     Ok(())
 }
 
-pub fn is_condition_met(branch: &NeonBranch, condition_type: &str) -> bool {
-    branch
-        .status
-        .as_ref()
-        .and_then(|status| Some(status.conditions.as_ref()))
-        .map(|conditions: &Vec<Condition>| {
-            conditions
-                .iter()
-                .any(|condition| condition.type_ == condition_type && condition.status == "True")
-        })
-        .unwrap_or(false)
-}
-
-pub async fn create_default_user(
+pub async fn get_or_create_default_user(
     client: &kube::Client,
     namespace: &str,
     name: &str,
@@ -163,19 +156,31 @@ pub async fn create_default_user(
     // TODO: Implement logic to create default user in the Compute node
     // After creating the user, update the status with the new condition
     let branch_client: Api<NeonBranch> = Api::namespaced(client.clone(), namespace);
-    let patch = Patch::Merge(json!({
-        "status": {
-            "conditions": [{
-                "type": DEFAULT_USER_CREATED_CONDITION,
-                "status": true,
-                "lastTransitionTime": chrono::Utc::now().to_rfc3339(),
-            }]
-        }
-    }));
-    branch_client
-        .patch_status(name, &PatchParams::default(), &patch)
-        .await
-        .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+    let (conditions, changed) = set_status_condition(
+        &branch.status.as_ref().unwrap().conditions,
+        Condition {
+            type_: DEFAULT_USER_CREATED_CONDITION.to_string(),
+            status: "True".to_string(),
+            last_transition_time: Time(chrono::Utc::now()),
+            message: "Default user created".to_string(),
+            reason: "DefaultUserCreated".to_string(),
+            observed_generation: None,
+        },
+    );
+    if changed {
+        let patch = Patch::Merge(json!({
+            "status": {
+                "conditions": conditions
+            }
+        }));
+
+        branch_client
+            .patch_status(name, &PatchParams::apply(FIELD_MANAGER), &patch)
+            .await
+            .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+
+        info!("Default user created");
+    }
     Ok(())
 }
 
@@ -188,19 +193,30 @@ pub async fn create_default_database(
     // TODO: Implement logic to create default database in the Compute node
     // After creating the database, update the status with the new condition
     let branch_client: Api<NeonBranch> = Api::namespaced(client.clone(), namespace);
-    let patch = Patch::Merge(json!({
+
+    let (conditions, changed) = set_status_condition(
+        &branch.status.as_ref().unwrap().conditions,
+        Condition {
+            type_: DEFAULT_DATABASE_CREATED_CONDITION.to_string(),
+            status: "True".to_string(),
+            last_transition_time: Time(chrono::Utc::now()),
+            message: "Default database created".to_string(),
+            reason: "DefaultDatabaseCreated".to_string(),
+            observed_generation: None,
+        },
+    );
+    if changed {
+        let patch = Patch::Merge(json!({
         "status": {
-            "conditions": [{
-                "type": DEFAULT_DATABASE_CREATED_CONDITION,
-                "status": true,
-                "lastTransitionTime": chrono::Utc::now().to_rfc3339(),
-            }]
+            "conditions": conditions
         }
-    }));
-    branch_client
-        .patch_status(name, &PatchParams::default(), &patch)
-        .await
-        .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+        }));
+
+        branch_client
+            .patch_status(name, &PatchParams::apply(FIELD_MANAGER), &patch)
+            .await
+            .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+    }
     Ok(())
 }
 
@@ -216,7 +232,7 @@ pub fn create_compute_spec_config_map(name: &str, branch: &NeonBranch, project: 
             "name": project_name,
             "roles": [
                 {
-                    "name": "cloud_admin",
+                    "name": project.spec.superuser_name,
                     "encrypted_password": "b093c0d3b281ba6da1eacc608620abd8",
                     "options": null
                 }
@@ -239,7 +255,10 @@ pub fn create_compute_spec_config_map(name: &str, branch: &NeonBranch, project: 
                 {"name": "restart_after_crash", "value": "off", "vartype": "bool"},
                 {"name": "synchronous_standby_names", "value": "walproposer", "vartype": "string"},
                 {"name": "shared_preload_libraries", "value": "neon", "vartype": "string"},
-                {"name": "neon.safekeepers", "value": format!("safekeeper-{0}-0.neon.svc.cluster.local:5454,safekeeper-{0}-1.neon.svc.cluster.local:5454,safekeeper-{0}-2.neon.svc.cluster.local:5454", cluster_name), "vartype": "string"},
+                {"name": "neon.safekeepers", "value": format!(
+                    "safekeeper-{0}-0.neon.svc.cluster.local:5454,safekeeper-{0}-1.neon.svc.cluster.local:5454,safekeeper-{0}-2.neon.svc.cluster.local:5454",
+                    cluster_name
+                ), "vartype": "string"},
                 {"name": "neon.timeline_id", "value": branch.spec.timeline_id.clone().unwrap_or_default(), "vartype": "string"},
                 {"name": "neon.tenant_id", "value": project.spec.tenant_id, "vartype": "string"},
                 {"name": "neon.pageserver_connstring", "value": format!("host=pageserver-{0}.neon.svc.cluster.local port=6400", cluster_name), "vartype": "string"},

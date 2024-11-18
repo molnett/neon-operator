@@ -1,13 +1,7 @@
 kind: NeonCluster
 apiVersion: oltp.molnett.org/v1
 metadata:
-  name: neon
+  name: basic-cluster
+  namespace: neon
 spec:
-  hide: false
-  page_server:
-    id: 1
-  pg_version: "15"
-  safekeeper:
-    replicas: 1
-  storage_broker:
-    replicas: 1
+  bucket_credentials_secret: tigris-bucket

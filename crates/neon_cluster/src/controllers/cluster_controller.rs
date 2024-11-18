@@ -25,11 +25,35 @@ use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
 use tracing::*;
 
+// Define a constant at the top of the file
+pub const FIELD_MANAGER: &str = "neon-cluster-controller";
+
 impl NeonCluster {
     // Reconcile (for non-finalizer related changes)
-    async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action, errors::Error> {
+    pub async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action, errors::Error> {
         let client = ctx.client.clone();
         let recorder = ctx.diagnostics.read().await.recorder(client.clone(), self);
+
+        let cluster_client: Api<NeonCluster> = Api::namespaced(client.clone(), &self.namespace().unwrap());
+
+        // if status is not set, set it to default
+        if self.status.is_none() {
+            let new_status = Patch::Apply(json!({
+                "apiVersion": "oltp.molnett.org/v1",
+                "kind": "NeonCluster",
+                "status": NeonClusterStatus {
+                    page_server_status: NeonClusterPageServerStatus{},
+                    storage_broker_status: NeonClusterStorageBrokerStatus{},
+                    safekeeper_status: NeonClusterSafeKeeperStatus{},
+                }
+            }));
+
+            let ps = PatchParams::apply(FIELD_MANAGER).force();
+            let _o = cluster_client
+                .patch_status(&self.name_any(), &ps, &new_status)
+                .await
+                .map_err(|e| errors::Error::StdError(errors::StdError::KubeError(e)))?;
+        }
 
         // first reconcile storage broker
         match storage_broker::reconcile(self, ctx.clone()).await {

@@ -35,7 +35,16 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
     let ns = neon_cluster.namespace().unwrap_or_default();
     info!("Reconciling StatefulSet '{}' in namespace '{}'", name, ns);
 
-    let oref = neon_cluster.controller_owner_ref(&()).unwrap();
+    let oref = neon_cluster
+        .controller_owner_ref(&())
+        .unwrap_or_else(|| OwnerReference {
+            api_version: "oltp.molnett.org/v1".to_string(),
+            kind: "NeonCluster".to_string(),
+            controller: Some(true),
+            name: neon_cluster.metadata.name.clone().unwrap(),
+            uid: format!("statefulset-{}", neon_cluster.metadata.name.clone().unwrap()),
+            ..Default::default()
+        });
 
     reconcile_statefulset(
         &ctx.client,

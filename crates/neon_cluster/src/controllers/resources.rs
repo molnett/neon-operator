@@ -38,15 +38,14 @@ pub struct NeonClusterSpec {
     pub default_pg_version: PGVersion,
     #[serde(default = "default_neon_image")]
     pub neon_image: String,
-    pub rook_bucket_object: Option<String>,
-    pub bucket_credentials_secret: Option<String>,
+    pub bucket_credentials_secret: String,
 }
 
 fn default_num_safekeepers() -> u8 {
     3
 }
 fn default_pg_version() -> PGVersion {
-    PGVersion::PG15
+    PGVersion::PG16
 }
 fn default_neon_image() -> String {
     "neondatabase/neon:6351-bookworm".to_string()

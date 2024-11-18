@@ -2,8 +2,8 @@ use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use k8s_openapi::api::core::v1::{
-    ConfigMap, ConfigMapVolumeSource, Container, ContainerPort, EnvVar, PodSpec, PodTemplateSpec, Service,
-    ServicePort, ServiceSpec, Volume, VolumeMount,
+    ConfigMap, ConfigMapVolumeSource, Container, ContainerPort, EnvVar, EnvVarSource, PodSpec,
+    PodTemplateSpec, SecretKeySelector, Service, ServicePort, ServiceSpec, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta, OwnerReference};
 
@@ -34,10 +34,26 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
     let ns = neon_cluster.namespace().unwrap_or_default();
     info!("Reconciling Pageserver '{}' in namespace '{}'", name, ns);
 
-    let oref = neon_cluster.controller_owner_ref(&()).unwrap();
+    let oref = neon_cluster
+        .controller_owner_ref(&())
+        .unwrap_or_else(|| OwnerReference {
+            api_version: "oltp.molnett.org/v1".to_string(),
+            kind: "NeonCluster".to_string(),
+            controller: Some(true),
+            name: neon_cluster.metadata.name.clone().unwrap(),
+            uid: format!("deployment-{}", neon_cluster.metadata.name.clone().unwrap()),
+            ..Default::default()
+        });
 
     reconcile_configmap(&ctx.client, &ns, &name, &neon_cluster.name_any(), &oref).await?;
-    reconcile_statefulset(&ctx.client, &ns, &name, &oref).await?;
+    reconcile_statefulset(
+        &ctx.client,
+        &ns,
+        &name,
+        &neon_cluster.spec.bucket_credentials_secret,
+        &oref,
+    )
+    .await?;
     reconcile_service(&ctx.client, &ns, &name, &oref).await?;
 
     Ok(Action::requeue(Duration::from_secs(300)))
@@ -86,10 +102,12 @@ async fn reconcile_statefulset(
     client: &Client,
     namespace: &str,
     cluster_name: &str,
+    bucket_credentials_secret: &str,
     oref: &OwnerReference,
 ) -> Result<()> {
     let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
-    let desired_statefulset = create_desired_statefulset(namespace, cluster_name, oref);
+    let desired_statefulset =
+        create_desired_statefulset(namespace, cluster_name, bucket_credentials_secret, oref);
 
     match statefulsets.get(cluster_name).await {
         Ok(existing) => {
@@ -196,7 +214,12 @@ fn create_desired_configmap(
     }
 }
 
-fn create_desired_statefulset(namespace: &str, cluster_name: &str, oref: &OwnerReference) -> StatefulSet {
+fn create_desired_statefulset(
+    namespace: &str,
+    cluster_name: &str,
+    bucket_credentials_secret: &str,
+    oref: &OwnerReference,
+) -> StatefulSet {
     let mut labels = BTreeMap::new();
     labels.insert("app.kubernetes.io/name".to_string(), cluster_name.to_string());
     StatefulSet {
@@ -248,22 +271,34 @@ fn create_desired_statefulset(namespace: &str, cluster_name: &str, oref: &OwnerR
                             },
                             EnvVar {
                                 name: "AWS_ACCESS_KEY_ID".to_string(),
-                                value: Some(
-                                    "tid_QwbxxaaCXAVbXpAxeusESWV_oMsCvwMrrzVcFBPWqnuzPQpXhG".to_string(),
-                                ),
+                                value_from: Some(EnvVarSource {
+                                    secret_key_ref: Some(SecretKeySelector {
+                                        key: "AWS_ACCESS_KEY_ID".to_string(),
+                                        name: Some(bucket_credentials_secret.to_string()),
+                                        ..Default::default()
+                                    }),
+                                    ..Default::default()
+                                }),
                                 ..Default::default()
                             },
                             EnvVar {
                                 name: "AWS_SECRET_ACCESS_KEY".to_string(),
-                                value: Some("tsec_2cUimW8F4rbgKVQs1vaY63zxsFztC2vyYInhQI_vCooj2pKF67Ni67Hg0d1Ym_cWL3DG-u".to_string()),
+                                value_from: Some(EnvVarSource {
+                                    secret_key_ref: Some(SecretKeySelector {
+                                        key: "AWS_SECRET_ACCESS_KEY".to_string(),
+                                        name: Some(bucket_credentials_secret.to_string()),
+                                        ..Default::default()
+                                    }),
+                                    ..Default::default()
+                                }),
                                 ..Default::default()
                             },
                         ]),
                         volume_mounts: Some(vec![
                             VolumeMount {
-                            name: "pageserver-storage".to_string(),
-                            mount_path: "/data/.neon/tenants".to_string(),
-                            ..Default::default()
+                                name: "pageserver-storage".to_string(),
+                                mount_path: "/data/.neon/tenants".to_string(),
+                                ..Default::default()
                             },
                             VolumeMount {
                                 name: "pageserver-config".to_string(),
@@ -275,28 +310,31 @@ fn create_desired_statefulset(namespace: &str, cluster_name: &str, oref: &OwnerR
                                 name: "pageserver-config".to_string(),
                                 mount_path: "/data/.neon/identity.toml".to_string(),
                                 sub_path: Some("identity.toml".to_string()),
-                                    ..Default::default()
-                                },
+                                ..Default::default()
+                            },
                         ]),
                         ..Default::default()
                     }],
-                    volumes: Some(vec![Volume {
-                        name: "pageserver-storage".to_string(),
-                        persistent_volume_claim: Some(
-                            k8s_openapi::api::core::v1::PersistentVolumeClaimVolumeSource {
-                                claim_name: "pageserver-storage".to_string(),
-                                ..Default::default()
-                            },
-                        ),
-                        ..Default::default()
-                    }, Volume {
-                        name: "pageserver-config".to_string(),
-                        config_map: Some(ConfigMapVolumeSource {
-                            name: Some(cluster_name.to_string()),
+                    volumes: Some(vec![
+                        Volume {
+                            name: "pageserver-storage".to_string(),
+                            persistent_volume_claim: Some(
+                                k8s_openapi::api::core::v1::PersistentVolumeClaimVolumeSource {
+                                    claim_name: "pageserver-storage".to_string(),
+                                    ..Default::default()
+                                },
+                            ),
                             ..Default::default()
-                        }),
-                        ..Default::default()
-                    }]),
+                        },
+                        Volume {
+                            name: "pageserver-config".to_string(),
+                            config_map: Some(ConfigMapVolumeSource {
+                                name: Some(cluster_name.to_string()),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        },
+                    ]),
                     ..Default::default()
                 }),
             },

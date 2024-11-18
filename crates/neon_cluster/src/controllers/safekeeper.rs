@@ -9,14 +9,14 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta, 
 
 use kube::runtime::controller::Action;
 use kube::{
-    api::{ListParams, Patch, PatchParams, PostParams},
+    api::{Patch, PatchParams, PostParams},
     Api, Client, Resource, ResourceExt,
 };
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tokio::time::Duration;
-use tracing::{error, info, instrument, warn};
+use tracing::info;
 
 use super::cluster_controller::Context;
 use super::resources::*;

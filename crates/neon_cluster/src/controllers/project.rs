@@ -1,17 +1,9 @@
-use std::sync::Arc;
-use std::time::Duration;
-
-use super::cluster_controller::Context;
 use super::project_controller::FIELD_MANAGER;
 use super::resources::{NeonProject, NeonProjectStatus};
 use crate::util::errors::{Error, Result, StdError};
 
-use k8s_openapi::api::apps::v1::Deployment;
-use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use kube::api::{Api, Patch, PatchParams};
-use kube::runtime::controller::Action;
-use kube::ResourceExt;
 use serde_json::json;
 
 pub const COMPUTE_NODE_READY_CONDITION: &str = "ComputeNodeReady";
@@ -65,7 +57,7 @@ pub fn is_condition_met(neon_project: &NeonProject, condition_type: &str) -> boo
     neon_project
         .status
         .as_ref()
-        .and_then(|status| Some(status.conditions.as_ref()))
+        .map(|status| status.conditions.as_ref())
         .map(|conditions: &Vec<Condition>| {
             conditions
                 .iter()

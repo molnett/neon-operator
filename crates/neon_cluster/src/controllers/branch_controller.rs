@@ -3,14 +3,13 @@ use super::branch::{
     is_compute_node_ready, update_status, DEFAULT_DATABASE_CREATED_CONDITION, DEFAULT_USER_CREATED_CONDITION,
 };
 use super::resources::*;
-use crate::controllers::{branch, pageserver, project, safekeeper, storage_broker};
 use crate::util::errors::{Error, StdError};
 use crate::util::status::is_status_condition_true;
 use crate::util::{errors, errors::Result, metrics, telemetry};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use k8s_openapi::api::{
-    apps::v1::{Deployment, StatefulSet},
+    apps::v1::Deployment,
     core::v1::Service,
 };
 use kube::{
@@ -21,13 +20,10 @@ use kube::{
         events::{Event, EventType, Recorder, Reporter},
         finalizer::{finalizer, Event as Finalizer},
         watcher::{self, Config},
-    },
-    CustomResource, Resource,
+    }, Resource,
 };
-use rand::distributions::{Alphanumeric, DistString};
 use rand::RngCore;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};

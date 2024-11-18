@@ -1,5 +1,5 @@
 use super::resources::*;
-use crate::controllers::{branch, pageserver, project, safekeeper, storage_broker};
+use crate::controllers::{pageserver, safekeeper, storage_broker};
 use crate::util::{errors, errors::Result, metrics, telemetry};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
@@ -16,10 +16,9 @@ use kube::{
         finalizer::{finalizer, Event as Finalizer},
         watcher::{self, Config},
     },
-    CustomResource, Resource,
+    Resource,
 };
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
@@ -32,7 +31,7 @@ impl NeonCluster {
     // Reconcile (for non-finalizer related changes)
     pub async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action, errors::Error> {
         let client = ctx.client.clone();
-        let recorder = ctx.diagnostics.read().await.recorder(client.clone(), self);
+        let _ = ctx.diagnostics.read().await.recorder(client.clone(), self);
 
         let cluster_client: Api<NeonCluster> = Api::namespaced(client.clone(), &self.namespace().unwrap());
 
@@ -158,7 +157,7 @@ pub struct Context {
 #[instrument(skip(ctx, neon_cluster), fields(trace_id))]
 pub async fn reconcile(neon_cluster: Arc<NeonCluster>, ctx: Arc<Context>) -> Result<Action> {
     let trace_id = telemetry::get_trace_id();
-    Span::current().record("trace_id", &field::display(&trace_id));
+    Span::current().record("trace_id", field::display(&trace_id));
     let _timer = ctx.metrics.count_and_measure("cluster");
     ctx.diagnostics.write().await.last_event = Utc::now();
 

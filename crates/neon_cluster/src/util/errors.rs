@@ -1,4 +1,3 @@
-use std::error;
 use std::fmt;
 use thiserror::Error;
 use tokio::time::Duration;
@@ -37,10 +36,7 @@ pub struct ErrorWithRequeue {
 
 impl ErrorWithRequeue {
     pub fn new(error: StdError, duration: Duration) -> ErrorWithRequeue {
-        ErrorWithRequeue {
-            error: error,
-            duration: duration,
-        }
+        ErrorWithRequeue { error, duration }
     }
 
     pub fn metric_label(&self) -> String {

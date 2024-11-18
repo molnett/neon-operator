@@ -1,5 +1,4 @@
 use super::resources::*;
-use crate::controllers::{branch, pageserver, project, safekeeper, storage_broker};
 use crate::util::errors::{Error, StdError};
 use crate::util::{errors, errors::Result, metrics, telemetry};
 use chrono::{DateTime, Utc};
@@ -17,12 +16,10 @@ use kube::{
         finalizer::{finalizer, Event as Finalizer},
         watcher::{self, Config},
     },
-    CustomResource, Resource,
+    Resource,
 };
-use rand::distributions::{Alphanumeric, DistString};
 use rand::RngCore;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use std::sync::Arc;
 use tokio::{sync::RwLock, time::Duration};
@@ -33,7 +30,6 @@ pub const FIELD_MANAGER: &str = "neon-project-controller";
 impl NeonProject {
     // Reconcile (for non-finalizer related changes)
     async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action, errors::Error> {
-        let client = ctx.client.clone();
         let namespace = self.namespace().unwrap();
         let name = self.name_any();
 
@@ -154,7 +150,7 @@ pub struct Context {
 #[instrument(skip(ctx, neon_project), fields(trace_id))]
 pub async fn reconcile(neon_project: Arc<NeonProject>, ctx: Arc<Context>) -> Result<Action> {
     let trace_id = telemetry::get_trace_id();
-    Span::current().record("trace_id", &field::display(&trace_id));
+    Span::current().record("trace_id", field::display(&trace_id));
     let _timer = ctx.metrics.count_and_measure("project");
     ctx.diagnostics.write().await.last_event = Utc::now();
 

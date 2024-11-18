@@ -13,15 +13,10 @@ use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference},
 };
 use kube::{
-    api::{Api, ListParams, ObjectMeta, Patch, PatchParams, PostParams, ResourceExt},
+    api::{Api, ObjectMeta, Patch, PatchParams, PostParams},
     client::Client,
-    runtime::{
-        controller::{Action, Controller},
-        events::{Event, EventType, Recorder, Reporter},
-        finalizer::{finalizer, Event as Finalizer},
-        watcher::Config,
-    },
-    CustomResource, Resource,
+    runtime::controller::Action,
+    Resource,
 };
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::time::Duration;
@@ -56,7 +51,7 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
     reconcile_deployment(&ctx.client, &ns, &name, &oref).await?;
     reconcile_service(&ctx.client, &ns, &name, &oref).await?;
 
-    return Ok(Action::requeue(Duration::from_secs(5 * 60)));
+    Ok(Action::requeue(Duration::from_secs(5 * 60)))
 }
 
 async fn reconcile_deployment(
@@ -100,20 +95,19 @@ async fn reconcile_deployment(
 async fn reconcile_service(
     client: &Client,
     namespace: &str,
-    name: &str,
+    service_name: &str,
     oref: &OwnerReference,
 ) -> Result<()> {
     let services: Api<Service> = Api::namespaced(client.clone(), namespace);
-    let service_name = format!("{}", name);
-    let desired_service = create_desired_service(namespace, &service_name, oref);
+    let desired_service = create_desired_service(namespace, service_name, oref);
 
-    match services.get(&service_name).await {
+    match services.get(service_name).await {
         Ok(existing) => {
             if service_needs_update(&existing, &desired_service) {
                 info!("Updating Service '{}'", service_name);
                 services
                     .patch(
-                        &service_name,
+                        service_name,
                         &PatchParams::apply("kube-rs-controller").force(),
                         &Patch::Apply(&desired_service),
                     )

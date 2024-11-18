@@ -1,9 +1,5 @@
-use std::sync::Arc;
-use std::time::Duration;
-
 use super::branch_controller::FIELD_MANAGER;
-use super::cluster_controller::Context;
-use super::resources::{NeonBranch, NeonBranchStatus, NeonProject};
+use super::resources::{NeonBranch, NeonProject};
 use crate::util::errors::{Error, Result, StdError};
 use crate::util::status::set_status_condition;
 
@@ -14,9 +10,7 @@ use k8s_openapi::api::core::v1::{
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, LabelSelector, ObjectMeta, Time};
 use kube::api::{Api, Patch, PatchParams};
-use kube::runtime::controller::Action;
-use kube::{Resource, ResourceExt};
-use rand::distributions::{Alphanumeric, DistString};
+use kube::Resource;
 use serde_json::json;
 use tracing::info;
 

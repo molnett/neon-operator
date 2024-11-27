@@ -15,8 +15,8 @@ pub enum StdError {
     // so boxing this error to break cycles
     FinalizerError(#[source] Box<kube::runtime::finalizer::Error<Error>>),
 
-    #[error("IllegalDocument")]
-    IllegalDocument,
+    #[error("MetadataMissing: {0}")]
+    MetadataMissing(&'static str),
 
     #[error("InvalidArgument: {0}")]
     InvalidArgument(&'static str),

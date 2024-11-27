@@ -97,7 +97,7 @@ impl NeonCluster {
     // Finalizer cleanup (the object was deleted, ensure nothing is orphaned)
     async fn cleanup(&self, ctx: Arc<Context>) -> Result<Action> {
         let recorder = ctx.diagnostics.read().await.recorder(ctx.client.clone(), self);
-        // Document doesn't have any real cleanup, so we just publish an event
+        // Cluster doesn't have any real cleanup, so we just publish an event
         recorder
             .publish(Event {
                 type_: EventType::Normal,

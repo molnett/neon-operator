@@ -8,10 +8,7 @@ use crate::util::status::is_status_condition_true;
 use crate::util::{errors, errors::Result, metrics, telemetry};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use k8s_openapi::api::{
-    apps::v1::Deployment,
-    core::v1::Service,
-};
+use k8s_openapi::api::{apps::v1::Deployment, core::v1::Service};
 use kube::{
     api::{Api, ListParams, Patch, PatchParams, ResourceExt},
     client::Client,
@@ -20,7 +17,8 @@ use kube::{
         events::{Event, EventType, Recorder, Reporter},
         finalizer::{finalizer, Event as Finalizer},
         watcher::{self, Config},
-    }, Resource,
+    },
+    Resource,
 };
 use rand::RngCore;
 use serde::Serialize;
@@ -137,7 +135,7 @@ impl NeonBranch {
     // Finalizer cleanup (the object was deleted, ensure nothing is orphaned)
     async fn cleanup(&self, ctx: Arc<Context>) -> Result<Action> {
         let recorder = ctx.diagnostics.read().await.recorder(ctx.client.clone(), self);
-        // Document doesn't have any real cleanup, so we just publish an event
+        // Branch doesn't have any real cleanup, so we just publish an event
         recorder
             .publish(Event {
                 type_: EventType::Normal,

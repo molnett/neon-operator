@@ -13,26 +13,27 @@ telemetry = ["tonic", "opentelemetry-otlp"]
 
 [dependencies]
 actix-web = "4.4.0"
+anyhow = "1.0.75"
+chrono = { version = "0.4.26", features = ["serde"] }
 futures = "0.3.28"
-tokio = { version = "1.32.0", features = ["macros", "rt-multi-thread"] }
+hex = "0.4.3"
 k8s-openapi = { version = "0.20.0", features = ["latest"] }
+pageserver_client = { path = "../../../neon/pageserver/client" }
+opentelemetry = { version = "0.20.0", features = ["trace", "rt-tokio"] }
+opentelemetry-otlp = { version = "0.13.0", features = ["tokio"], optional = true }
+prometheus = "0.13.3"
+rand = "0.8.5"
+reqwest = "0.12.8"
 schemars = { version = "0.8.12", features = ["chrono"] }
 serde = { version = "1.0.185", features = ["derive"] }
 serde_json = "1.0.105"
 serde_yaml = "0.9.25"
-prometheus = "0.13.3"
-chrono = { version = "0.4.26", features = ["serde"] }
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
-tracing-opentelemetry = "0.20.0"
-opentelemetry = { version = "0.20.0", features = ["trace", "rt-tokio"] }
-opentelemetry-otlp = { version = "0.13.0", features = ["tokio"], optional = true }
-tonic = { version = "0.9", optional = true }
 thiserror = "1.0.47"
-anyhow = "1.0.75"
-rand = "0.8.5"
-reqwest = "0.12.8"
-hex = "0.4.3"
+tokio = { version = "1.32.0", features = ["macros", "rt-multi-thread"] }
+tonic = { version = "0.9", optional = true }
+tracing = "0.1.37"
+tracing-opentelemetry = "0.20.0"
+tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"

@@ -1,4 +1,4 @@
-FROM cgr.dev/chainguard/static
-COPY --chown=nonroot:nonroot ./controller /app/
+FROM debian:stable-slim
+COPY --chown=nonroot:nonroot ./target/release/operator /app/
 EXPOSE 8080
-ENTRYPOINT ["/app/controller"]
+ENTRYPOINT ["/app/operator"]

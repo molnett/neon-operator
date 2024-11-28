@@ -8,7 +8,6 @@ install-crd: generate
 
 generate:
   cargo run -p crdgen > yaml/crd.yaml
-  helm template charts/doc-controller > yaml/deployment.yaml
 
 # run with opentelemetry
 run-telemetry:
@@ -34,19 +33,12 @@ test-telemetry:
 
 # compile for musl (for docker image)
 compile features="":
-  #!/usr/bin/env bash
-  docker run --rm \
-    -v cargo-cache:/root/.cargo \
-    -v $PWD:/volume \
-    -w /volume \
-    -t clux/muslrust:stable \
-    cargo build --release --features={{features}} --p controller
-  cp target/x86_64-unknown-linux-musl/release/controller .
+  cargo build --release --features={{features}} --target=x86_64-unknown-linux-gnu -p operator
 
 [private]
 _build features="":
   just compile {{features}}
-  docker build -t clux/controller:local .
+  docker build -t molnett/neon-operator:local .
 
 # docker build base
 build-base: (_build "")

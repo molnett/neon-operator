@@ -25,14 +25,15 @@ This is an early-stage project that provides basic functionality for running Neo
 
 ### Required Dependencies
 
-- Rust toolchain (latest stable)
+- Rust toolchain (1.70 or later)
 - Kubernetes cluster (1.28+)
 - kubectl
 - [kubebuilder](https://book.kubebuilder.io/quick-start.html)
+- [just](https://github.com/casey/just) command runner
 
 ### Neon Repository Setup
 
-This operator requires the main Neon repository to be checked out adjacent to this repository for builds to work:
+This operator currently requires the main Neon repository to be checked out adjacent to this repository for builds to work. We plan to remove this dependency in future versions.
 
 1. Clone the Neon repository next to this operator repository:
 
@@ -58,22 +59,60 @@ parent-directory/
 
 ## Building
 
+To build the operator:
+
 ```bash
-cargo build
+just build-base
 ```
 
-## Installation
+## Local Development
 
-TBD - Installation instructions will be added as the project matures.
+To run the operator locally against your Kubernetes cluster:
+
+```bash
+just run
+```
 
 ## Usage
 
-TBD - Usage instructions and examples will be added as the project matures.
+### Installing the Operator
+
+1. Apply the CRDs to your cluster:
+
+   ```bash
+   kubectl apply -f yaml/crds/
+   ```
+
+2. Deploy the operator:
+
+   ```bash
+   kubectl apply -f yaml/operator/
+   ```
+
+### Creating a Neon Cluster
+
+Example manifest (basic configuration):
+
+```yaml
+apiVersion: neon.tech/v1alpha1
+kind: NeonCluster
+metadata:
+  name: example-cluster
+spec:
+  # Configuration details TBD
+```
+
+Detailed configuration options and examples will be added as the project matures.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request. Before contributing:
+
+1. Open an issue to discuss your proposed changes
+2. Ensure all tests pass locally
+3. Add tests for new functionality
+4. Update documentation as needed
 
 ## License
 
-TBD
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.

@@ -1,0 +1,10 @@
+kind: NeonBranch
+apiVersion: oltp.molnett.org/v1
+metadata:
+  name: molnett-main
+spec:
+  id: main
+  name: main
+  pg_version: "PG16"
+  default_branch: true
+  project_id: molnett-project

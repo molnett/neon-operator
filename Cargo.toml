@@ -1,5 +1,5 @@
 [workspace]
 resolver = "2"
 members = [
-    'crates/crdgen', "crates/neon_storage", "crates/operator",
+    'crates/crdgen', "crates/neon_cluster", "crates/operator"
 ]

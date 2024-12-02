@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 actix-web = "4.8.0"
 anyhow = "1.0.86"
-neon_storage = { path = "../neon_storage" }
+neon_cluster = { path = "../neon_cluster" }
 prometheus = "0.13.4"
 tokio = { version = "1.38.0", features = ["full"] }
 

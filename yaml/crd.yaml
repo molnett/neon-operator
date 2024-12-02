@@ -1,92 +1,260 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  name: neonstorages.oltp.molnett.org
+  name: neonclusters.oltp.molnett.org
 spec:
   group: oltp.molnett.org
   names:
     categories: []
-    kind: NeonStorage
-    plural: neonstorages
+    kind: NeonCluster
+    plural: neonclusters
     shortNames:
-    - neonstorage
-    singular: neonstorage
+    - neoncluster
+    singular: neoncluster
   scope: Namespaced
   versions:
   - additionalPrinterColumns: []
     name: v1
     schema:
       openAPIV3Schema:
-        description: Auto-generated derived type for NeonStorageSpec via `CustomResource`
+        description: Auto-generated derived type for NeonClusterSpec via `CustomResource`
         properties:
           spec:
             description: |-
-              Generate the Kubernetes wrapper struct `NeonStorage` from our Spec and Status struct
+              Generate the Kubernetes wrapper struct `NeonCluster` from our Spec and Status struct
 
               This provides a hook for generating the CRD yaml (in crdgen.rs)
             properties:
-              hide:
-                type: boolean
-              page_server:
-                properties:
-                  id:
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                required:
-                - id
-                type: object
-              pg_version:
+              bucket_credentials_secret:
                 type: string
-              safekeeper:
-                properties:
-                  replicas:
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                required:
-                - replicas
-                type: object
-              storage_broker:
-                properties:
-                  replicas:
-                    format: uint32
-                    minimum: 0.0
-                    type: integer
-                required:
-                - replicas
-                type: object
+              default_pg_version:
+                default: PG16
+                enum:
+                - PG14
+                - PG15
+                - PG16
+                type: string
+              neon_image:
+                default: neondatabase/neon:6351-bookworm
+                type: string
+              num_safekeepers:
+                default: 3
+                format: uint8
+                minimum: 0.0
+                type: integer
             required:
-            - hide
-            - page_server
-            - pg_version
-            - safekeeper
-            - storage_broker
+            - bucket_credentials_secret
             type: object
           status:
-            description: The status object of `NeonStorage`
+            description: The status object of `NeonCluster`
             nullable: true
             properties:
-              hidden:
-                type: boolean
               page_server_status:
-                description: The status object of `NeonStorage`
+                description: The status object of `NeonCluster`
                 type: object
               safekeeper_status:
-                description: The status object of `NeonStorage`
+                description: The status object of `NeonCluster`
                 type: object
               storage_broker_status:
-                description: The status object of `NeonStorage`
+                description: The status object of `NeonCluster`
                 type: object
             required:
-            - hidden
             - page_server_status
             - safekeeper_status
             - storage_broker_status
             type: object
         required:
         - spec
-        title: NeonStorage
+        title: NeonCluster
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: neonbranches.oltp.molnett.org
+spec:
+  group: oltp.molnett.org
+  names:
+    categories: []
+    kind: NeonBranch
+    plural: neonbranches
+    shortNames:
+    - neonbranch
+    singular: neonbranch
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for NeonBranchSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              default_branch:
+                type: boolean
+              id:
+                type: string
+              name:
+                type: string
+              pg_version:
+                enum:
+                - PG14
+                - PG15
+                - PG16
+                type: string
+              project_id:
+                type: string
+              timeline_id:
+                nullable: true
+                type: string
+            required:
+            - default_branch
+            - id
+            - name
+            - pg_version
+            - project_id
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      default: 0
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+            required:
+            - conditions
+            type: object
+        required:
+        - spec
+        title: NeonBranch
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: neonprojects.oltp.molnett.org
+spec:
+  group: oltp.molnett.org
+  names:
+    categories: []
+    kind: NeonProject
+    plural: neonprojects
+    shortNames:
+    - neonproject
+    singular: neonproject
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for NeonProjectSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              cluster_name:
+                type: string
+              default_compute_size:
+                default: 0.25
+                format: float
+                type: number
+              default_database_name:
+                type: string
+              id:
+                type: string
+              name:
+                type: string
+              pg_version:
+                enum:
+                - PG14
+                - PG15
+                - PG16
+                type: string
+              superuser_name:
+                type: string
+              tenant_id:
+                nullable: true
+                type: string
+            required:
+            - cluster_name
+            - default_database_name
+            - id
+            - name
+            - pg_version
+            - superuser_name
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      default: 0
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+            required:
+            - conditions
+            type: object
+        required:
+        - spec
+        title: NeonProject
         type: object
     served: true
     storage: true

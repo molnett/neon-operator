@@ -9,9 +9,6 @@
 # Reference
 # https://github.com/crate-ci/cargo-release/blob/master/docs/reference.md
 
-pre-release-replacements = [
-  {file="charts/doc-controller/Chart.yaml", search="appVersion: .*", replace="appVersion: {{version}}"},
-]
 pre-release-commit-message = "release {{version}}"
 push = false
 tag = true

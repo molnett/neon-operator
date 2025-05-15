@@ -1,13 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use crate::controllers::cluster_controller::{reconcile, State};
+    use crate::controllers::cluster_controller::State;
     use crate::controllers::resources::NeonCluster;
     use crate::controllers::resources::{NeonClusterSpec, PGVersion};
-    use crate::util::telemetry;
+
     use k8s_openapi::api::apps::v1::Deployment;
-    use kube::api::{Api, ListParams, ObjectMeta, Patch, PatchParams};
     use kube::Client;
-    use std::sync::Arc;
+    use kube::api::{Api, ObjectMeta, Patch, PatchParams};
 
     #[tokio::test]
     #[ignore = "uses k8s current-context"]
@@ -48,12 +47,5 @@ mod tests {
         let pageserver_deployment = deployment_client.get("pageserver-test-cluster").await.unwrap();
 
         assert_eq!(pageserver_deployment.status.unwrap().ready_replicas, Some(1));
-    }
-
-    async fn delete_cluster(name: &str) {
-        let client = Client::try_default().await.unwrap();
-        let ctx = State::default().to_context(client.clone());
-        let clusters: Api<NeonCluster> = Api::namespaced(client.clone(), "default");
-        clusters.delete(name, &Default::default()).await.unwrap();
     }
 }

@@ -156,7 +156,7 @@ fn create_desired_deployment(namespace: &str, name: &str, oref: &OwnerReference)
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: "storage-broker".to_string(),
-                        image: Some("neondatabase/neon:6351-bookworm".to_string()),
+                        image: Some("neondatabase/neon:7894".to_string()),
                         command: Some(vec!["/usr/local/bin/storage_broker".to_string()]),
                         args: Some(vec!["--listen-addr=0.0.0.0:50051".to_string()]),
                         ports: Some(vec![ContainerPort {

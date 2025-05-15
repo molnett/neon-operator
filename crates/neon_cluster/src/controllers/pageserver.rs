@@ -195,13 +195,15 @@ fn create_desired_configmap(
                 "pageserver.toml".to_string(),
                 format!(
                     r#"
+                        control_plane_api = "http://0.0.0.0:6666"
+                        control_plane_emergency_mode = true
                         listen_pg_addr = "0.0.0.0:6400"
                         broker_endpoint = "http://storage-broker-{}:50051"
                         pg_distrib_dir='/usr/local/'
                         [remote_storage]
-                        bucket_name = "neon-operator"
-                        bucket_region = ""
-                        endpoint = "https://fly.storage.tigris.dev"
+                        bucket_name = "molnett-neon-local-bucket"
+                        bucket_region = "auto"
+                        endpoint = "https://t3.storage.dev"
                     "#,
                     cluster_name
                 )
@@ -245,7 +247,7 @@ fn create_desired_statefulset(
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: "pageserver".to_string(),
-                        image: Some("neondatabase/neon:6351-bookworm".to_string()),
+                        image: Some("neondatabase/neon:7894".to_string()),
                         image_pull_policy: Some("Always".to_string()),
                         command: Some(vec!["/usr/local/bin/pageserver".to_string()]),
                         ports: Some(vec![

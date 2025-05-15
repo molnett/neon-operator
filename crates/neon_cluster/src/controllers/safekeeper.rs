@@ -232,7 +232,7 @@ fn create_desired_statefulset(
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: "safekeeper".to_string(),
-                        image: Some("neondatabase/neon:6351-bookworm".to_string()),
+                        image: Some("neondatabase/neon:7894".to_string()),
                         command: Some(vec!["/bin/bash".to_string()]),
                         args: Some(vec!["-c".to_string(), safekeeper_command]),
                         ports: Some(vec![

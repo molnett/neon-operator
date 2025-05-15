@@ -121,6 +121,7 @@ pub struct NeonBranchSpec {
 pub struct NeonBranchStatus {
     #[schemars(schema_with = "conditions_schema")]
     pub conditions: Vec<Condition>,
+    pub phase: Option<String>,
 }
 
 fn conditions_schema(_: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {

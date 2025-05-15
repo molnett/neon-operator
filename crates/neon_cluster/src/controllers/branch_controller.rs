@@ -1,6 +1,9 @@
 use super::branch::{
     create_default_database, ensure_config_map, ensure_deployment, get_or_create_default_user,
-    is_compute_node_ready, update_status, DEFAULT_DATABASE_CREATED_CONDITION, DEFAULT_USER_CREATED_CONDITION,
+    is_compute_node_ready,
+};
+use crate::util::branch_status::{
+    BranchPhase, BranchStatusManager, DEFAULT_DATABASE_CREATED_CONDITION, DEFAULT_USER_CREATED_CONDITION,
 };
 use super::resources::*;
 use crate::util::errors::{Error, StdError};
@@ -29,6 +32,8 @@ use tracing::*;
 
 pub const FIELD_MANAGER: &str = "neon-branch-controller";
 
+// Use status manager constants for status-related operations
+
 impl NeonBranch {
     // Reconcile (for non-finalizer related changes)
     async fn reconcile(&self, ctx: Arc<Context>) -> Result<Action, errors::Error> {
@@ -45,7 +50,9 @@ impl NeonBranch {
         {
             Some(project) => project,
             None => {
-                update_status(&client, &namespace, &name, self, false).await?;
+                let status_manager = BranchStatusManager::new(&client, self)?;
+                status_manager.set_compute_node_ready(false).await?;
+                status_manager.update_phase(BranchPhase::Failed).await?;
                 return Ok(Action::requeue(Duration::from_secs(15)));
             }
         };
@@ -109,22 +116,24 @@ impl NeonBranch {
         // Check if Compute node is ready
         let compute_node_ready = is_compute_node_ready(&client, &namespace, &name).await?;
 
-        // Update status
-        update_status(&client, &namespace, &name, self, compute_node_ready).await?;
+        // Update status with compute node readiness state
+        // Update status using status manager
+        let status_manager = BranchStatusManager::new(&client, self)?;
+        status_manager.set_compute_node_ready(compute_node_ready).await?;
+        
+        let phase = if compute_node_ready { BranchPhase::Ready } else { BranchPhase::Pending };
+        status_manager.update_phase(phase).await?;
 
         if compute_node_ready {
+            // Get conditions safely or use an empty vec
+            let conditions = self.status.as_ref().map_or_else(Vec::new, |s| s.conditions.clone());
+            
             // Create default user and database if not already created
-            if !is_status_condition_true(
-                &self.status.as_ref().unwrap().conditions,
-                DEFAULT_USER_CREATED_CONDITION,
-            ) {
+            if !is_status_condition_true(&conditions, DEFAULT_USER_CREATED_CONDITION) {
                 get_or_create_default_user(&client, &namespace, &name, self).await?;
             }
 
-            if !is_status_condition_true(
-                &self.status.as_ref().unwrap().conditions,
-                DEFAULT_DATABASE_CREATED_CONDITION,
-            ) {
+            if !is_status_condition_true(&conditions, DEFAULT_DATABASE_CREATED_CONDITION) {
                 create_default_database(&client, &namespace, &name, self).await?;
             }
         }

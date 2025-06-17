@@ -32,16 +32,21 @@ test-telemetry:
   OPENTELEMETRY_ENDPOINT_URL=http://127.0.0.1:55680 cargo test --lib --all-features -- get_trace_id_returns_valid_traces --ignored
 
 # compile for linux arm64 (for docker image) using zigbuild cross-compilation
-compile features="" arch="aarch64-unknown-linux-gnu":
-  cargo zigbuild --release --target={{arch}} --features={{features}} -p operator
+compile arch="aarch64-unknown-linux-gnu" features="":
+  #!/usr/bin/env bash
+  if [ -n "{{features}}" ]; then
+    cargo zigbuild --release --target={{arch}} --features={{features}} -p operator
+  else
+    cargo zigbuild --release --target={{arch}} -p operator
+  fi
 
 # compile for x86_64
 compile-x86 features="":
-  just compile {{features}} x86_64-unknown-linux-gnu
+  just compile x86_64-unknown-linux-gnu {{features}}
 
 [private]
 _build features="" arch="aarch64-unknown-linux-gnu":
-  just compile {{features}} {{arch}}
+  just compile {{arch}} {{features}}
   docker build --build-arg TARGETARCH={{arch}} -t molnett/neon-operator:local-{{arch}} .
 
 # docker build base (arm64)
@@ -53,15 +58,37 @@ build-otel: (_build "telemetry" "aarch64-unknown-linux-gnu")
 # docker build with telemetry (x86_64)
 build-otel-x86: (_build "telemetry" "x86_64-unknown-linux-gnu")
 
-
 # local helper for test-telemetry and run-telemetry
 # forward grpc otel port from svc/promstack-tempo in monitoring
 forward-tempo:
   kubectl port-forward -n monitoring svc/promstack-tempo 55680:4317
 
-# Build operator image for E2E testing
+# Detect current architecture and map to Rust target
+[private]
+detect-arch:
+  #!/usr/bin/env bash
+  arch=$(uname -m)
+  case $arch in
+    x86_64)
+      echo "x86_64-unknown-linux-gnu"
+      ;;
+    arm64|aarch64)
+      echo "aarch64-unknown-linux-gnu"
+      ;;
+    *)
+      echo "aarch64-unknown-linux-gnu"  # default fallback
+      ;;
+  esac
+
+# Build operator image for E2E testing (auto-detects architecture)
 build-e2e-image:
-  just build-base
+  #!/usr/bin/env bash
+  target_arch=$(just detect-arch)
+  if [[ "$target_arch" == "x86_64-unknown-linux-gnu" ]]; then
+    just build-base-x86
+  else
+    just build-base
+  fi
 
 # Run E2E tests (requires operator image)
 test-e2e: build-e2e-image

@@ -32,18 +32,26 @@ test-telemetry:
   OPENTELEMETRY_ENDPOINT_URL=http://127.0.0.1:55680 cargo test --lib --all-features -- get_trace_id_returns_valid_traces --ignored
 
 # compile for linux arm64 (for docker image) using zigbuild cross-compilation
-compile features="":
-  cargo zigbuild --release --features={{features}} -p operator
+compile features="" arch="aarch64-unknown-linux-gnu":
+  cargo zigbuild --release --target={{arch}} --features={{features}} -p operator
+
+# compile for x86_64
+compile-x86 features="":
+  just compile {{features}} x86_64-unknown-linux-gnu
 
 [private]
-_build features="":
-  just compile {{features}}
-  docker build -t molnett/neon-operator:local .
+_build features="" arch="aarch64-unknown-linux-gnu":
+  just compile {{features}} {{arch}}
+  docker build --build-arg TARGETARCH={{arch}} -t molnett/neon-operator:local-{{arch}} .
 
-# docker build base
-build-base: (_build "")
-# docker build with telemetry
-build-otel: (_build "telemetry")
+# docker build base (arm64)
+build-base: (_build "" "aarch64-unknown-linux-gnu")
+# docker build base (x86_64)
+build-base-x86: (_build "" "x86_64-unknown-linux-gnu")
+# docker build with telemetry (arm64)
+build-otel: (_build "telemetry" "aarch64-unknown-linux-gnu")
+# docker build with telemetry (x86_64)
+build-otel-x86: (_build "telemetry" "x86_64-unknown-linux-gnu")
 
 
 # local helper for test-telemetry and run-telemetry

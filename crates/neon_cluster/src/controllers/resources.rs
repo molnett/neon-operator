@@ -54,22 +54,37 @@ fn default_neon_image() -> String {
 /// The status object of `NeonCluster`
 #[derive(Deserialize, Serialize, Clone, Default, Debug, JsonSchema)]
 pub struct NeonClusterStatus {
+    #[schemars(schema_with = "conditions_schema")]
+    pub conditions: Vec<Condition>,
+    pub phase: Option<String>,
     pub page_server_status: NeonClusterPageServerStatus,
     pub storage_broker_status: NeonClusterStorageBrokerStatus,
     pub safekeeper_status: NeonClusterSafeKeeperStatus,
 }
 
-/// The status object of `NeonCluster`
+/// The status object of `NeonCluster` PageServer component
 #[derive(Deserialize, Serialize, Clone, Default, Debug, JsonSchema)]
-pub struct NeonClusterPageServerStatus {}
+pub struct NeonClusterPageServerStatus {
+    pub ready: bool,
+    pub replicas: Option<i32>,
+    pub ready_replicas: Option<i32>,
+}
 
-/// The status object of `NeonCluster`
+/// The status object of `NeonCluster` StorageBroker component
 #[derive(Deserialize, Serialize, Clone, Default, Debug, JsonSchema)]
-pub struct NeonClusterStorageBrokerStatus {}
+pub struct NeonClusterStorageBrokerStatus {
+    pub ready: bool,
+    pub replicas: Option<i32>,
+    pub ready_replicas: Option<i32>,
+}
 
-/// The status object of `NeonCluster`
+/// The status object of `NeonCluster` SafeKeeper component
 #[derive(Deserialize, Serialize, Clone, Default, Debug, JsonSchema)]
-pub struct NeonClusterSafeKeeperStatus {}
+pub struct NeonClusterSafeKeeperStatus {
+    pub ready: bool,
+    pub replicas: Option<i32>,
+    pub ready_replicas: Option<i32>,
+}
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[cfg_attr(test, derive(Default))]
@@ -99,6 +114,7 @@ fn default_compute_size() -> f32 {
 pub struct NeonProjectStatus {
     #[schemars(schema_with = "conditions_schema")]
     pub conditions: Vec<Condition>,
+    pub phase: Option<String>,
 }
 
 #[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]

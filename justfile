@@ -31,9 +31,9 @@ test-integration: install-crd
 test-telemetry:
   OPENTELEMETRY_ENDPOINT_URL=http://127.0.0.1:55680 cargo test --lib --all-features -- get_trace_id_returns_valid_traces --ignored
 
-# compile for musl (for docker image)
+# compile for linux arm64 (for docker image) using zigbuild cross-compilation
 compile features="":
-  cargo build --release --features={{features}} --target=x86_64-unknown-linux-gnu -p operator
+  cargo zigbuild --release --target aarch64-unknown-linux-gnu --features={{features}} -p operator
 
 [private]
 _build features="":
@@ -50,3 +50,27 @@ build-otel: (_build "telemetry")
 # forward grpc otel port from svc/promstack-tempo in monitoring
 forward-tempo:
   kubectl port-forward -n monitoring svc/promstack-tempo 55680:4317
+
+# Build operator image for E2E testing
+build-e2e-image:
+  just build-base
+
+# Run E2E tests (requires operator image)
+test-e2e: build-e2e-image
+  cargo test --package e2e_tests --test basic_e2e -- --test-threads=1 --nocapture
+
+# Run E2E tests with existing image (faster iteration)
+test-e2e-fast:
+  cargo test --package e2e_tests --test basic_e2e -- --test-threads=1 --nocapture
+
+# Run E2E tests with verbose output
+test-e2e-verbose: build-e2e-image
+  RUST_LOG=debug cargo test --package e2e_tests --test basic_e2e -- --test-threads=1 --nocapture
+
+# Clean up any leftover e2e test clusters
+cleanup-e2e:
+  ./cleanup-e2e-clusters.sh
+
+# Clean up using cargo test (alternative method)  
+cleanup-e2e-rust:
+  cargo test --package e2e_tests --test basic_e2e cleanup_test_clusters -- --ignored --nocapture

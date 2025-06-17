@@ -2,6 +2,7 @@ kind: NeonBranch
 apiVersion: oltp.molnett.org/v1
 metadata:
   name: molnett-main
+  neon:
 spec:
   id: main
   name: main

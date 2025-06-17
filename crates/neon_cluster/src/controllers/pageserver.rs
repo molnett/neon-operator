@@ -45,7 +45,7 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
             ..Default::default()
         });
 
-    reconcile_configmap(&ctx.client, &ns, &name, &neon_cluster.name_any(), &oref).await?;
+    reconcile_configmap(&ctx.client, &ns, &name, &neon_cluster.name_any(), &neon_cluster.spec.bucket_credentials_secret, &oref).await?;
     reconcile_statefulset(
         &ctx.client,
         &ns,
@@ -64,10 +64,11 @@ async fn reconcile_configmap(
     namespace: &str,
     name: &str,
     cluster_name: &str,
+    bucket_credentials_secret: &str,
     oref: &OwnerReference,
 ) -> Result<()> {
     let configmaps: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
-    let desired_configmap = create_desired_configmap(namespace, name, cluster_name, oref);
+    let desired_configmap = create_desired_configmap(namespace, name, cluster_name, bucket_credentials_secret, client, oref).await?;
 
     match configmaps.get(name).await {
         Ok(existing) => {
@@ -176,13 +177,41 @@ async fn reconcile_service(
     Ok(())
 }
 
-fn create_desired_configmap(
+async fn create_desired_configmap(
     namespace: &str,
     name: &str,
     cluster_name: &str,
+    bucket_credentials_secret: &str,
+    client: &Client,
     oref: &OwnerReference,
-) -> ConfigMap {
-    ConfigMap {
+) -> Result<ConfigMap> {
+    // Fetch bucket credentials from the secret
+    let secrets: Api<k8s_openapi::api::core::v1::Secret> = Api::namespaced(client.clone(), namespace);
+    let secret = secrets.get(bucket_credentials_secret).await
+        .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+    
+    let secret_data = secret.data.as_ref()
+        .ok_or_else(|| Error::StdError(StdError::MetadataMissing("Secret has no data")))?;
+    
+    let bucket_name = String::from_utf8(
+        secret_data.get("BUCKET_NAME")
+            .ok_or_else(|| Error::StdError(StdError::MetadataMissing("BUCKET_NAME not found in secret")))?
+            .0.clone()
+    ).map_err(|_| Error::StdError(StdError::MetadataMissing("Invalid UTF-8 in BUCKET_NAME")))?;
+    
+    let aws_region = String::from_utf8(
+        secret_data.get("AWS_REGION")
+            .ok_or_else(|| Error::StdError(StdError::MetadataMissing("AWS_REGION not found in secret")))?
+            .0.clone()
+    ).map_err(|_| Error::StdError(StdError::MetadataMissing("Invalid UTF-8 in AWS_REGION")))?;
+    
+    let aws_endpoint_url = String::from_utf8(
+        secret_data.get("AWS_ENDPOINT_URL")
+            .ok_or_else(|| Error::StdError(StdError::MetadataMissing("AWS_ENDPOINT_URL not found in secret")))?
+            .0.clone()
+    ).map_err(|_| Error::StdError(StdError::MetadataMissing("Invalid UTF-8 in AWS_ENDPOINT_URL")))?;
+    
+    Ok(ConfigMap {
         metadata: ObjectMeta {
             name: Some(name.to_string()),
             namespace: Some(namespace.to_string()),
@@ -198,14 +227,16 @@ fn create_desired_configmap(
                         control_plane_api = "http://0.0.0.0:6666"
                         control_plane_emergency_mode = true
                         listen_pg_addr = "0.0.0.0:6400"
+                        listen_http_addr = "0.0.0.0:9898"
                         broker_endpoint = "http://storage-broker-{}:50051"
                         pg_distrib_dir='/usr/local/'
                         [remote_storage]
-                        bucket_name = "molnett-neon-local-bucket"
-                        bucket_region = "auto"
-                        endpoint = "https://t3.storage.dev"
+                        bucket_name = "{}"
+                        bucket_region = "{}"
+                        prefix_in_bucket = "pageserver"
+                        endpoint = "{}"
                     "#,
-                    cluster_name
+                    cluster_name, bucket_name, aws_region, aws_endpoint_url
                 )
                 .to_string(),
             );
@@ -213,7 +244,7 @@ fn create_desired_configmap(
             data
         }),
         ..Default::default()
-    }
+    })
 }
 
 fn create_desired_statefulset(
@@ -288,6 +319,42 @@ fn create_desired_statefulset(
                                 value_from: Some(EnvVarSource {
                                     secret_key_ref: Some(SecretKeySelector {
                                         key: "AWS_SECRET_ACCESS_KEY".to_string(),
+                                        name: Some(bucket_credentials_secret.to_string()),
+                                        ..Default::default()
+                                    }),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
+                            EnvVar {
+                                name: "AWS_REGION".to_string(),
+                                value_from: Some(EnvVarSource {
+                                    secret_key_ref: Some(SecretKeySelector {
+                                        key: "AWS_REGION".to_string(),
+                                        name: Some(bucket_credentials_secret.to_string()),
+                                        ..Default::default()
+                                    }),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
+                            EnvVar {
+                                name: "BUCKET_NAME".to_string(),
+                                value_from: Some(EnvVarSource {
+                                    secret_key_ref: Some(SecretKeySelector {
+                                        key: "BUCKET_NAME".to_string(),
+                                        name: Some(bucket_credentials_secret.to_string()),
+                                        ..Default::default()
+                                    }),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
+                            EnvVar {
+                                name: "AWS_ENDPOINT_URL".to_string(),
+                                value_from: Some(EnvVarSource {
+                                    secret_key_ref: Some(SecretKeySelector {
+                                        key: "AWS_ENDPOINT_URL".to_string(),
                                         name: Some(bucket_credentials_secret.to_string()),
                                         ..Default::default()
                                     }),
@@ -380,16 +447,27 @@ fn create_desired_service(namespace: &str, name: &str, oref: &OwnerReference) ->
             ..Default::default()
         },
         spec: Some(ServiceSpec {
-            cluster_ip: Some("None".to_string()),
             selector: Some(selector),
-            ports: Some(vec![ServicePort {
-                port: 6400,
-                target_port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(
-                    6400,
-                )),
-                protocol: Some("TCP".to_string()),
-                ..Default::default()
-            }]),
+            ports: Some(vec![
+                ServicePort {
+                    name: Some("pageserver-pg".to_string()),
+                    port: 6400,
+                    target_port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(
+                        6400,
+                    )),
+                    protocol: Some("TCP".to_string()),
+                    ..Default::default()
+                },
+                ServicePort {
+                    name: Some("pageserver-http".to_string()),
+                    port: 9898,
+                    target_port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(
+                        9898,
+                    )),
+                    protocol: Some("TCP".to_string()),
+                    ..Default::default()
+                },
+            ]),
             ..Default::default()
         }),
         ..Default::default()

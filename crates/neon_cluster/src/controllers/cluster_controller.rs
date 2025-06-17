@@ -1,6 +1,7 @@
 use super::resources::*;
 use crate::controllers::{pageserver, safekeeper, storage_broker};
 use crate::util::{errors, errors::Result, metrics, telemetry};
+use crate::util::cluster_status::{ClusterStatusManager, ClusterPhase};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use k8s_openapi::api::{
@@ -33,17 +34,21 @@ impl NeonCluster {
         let client = ctx.client.clone();
         let _ = ctx.diagnostics.read().await.recorder(client.clone(), self);
 
-        let cluster_client: Api<NeonCluster> = Api::namespaced(client.clone(), &self.namespace().unwrap());
+        // Initialize status manager
+        let status_manager = ClusterStatusManager::new(&client, self)?;
 
         // if status is not set, set it to default
         if self.status.is_none() {
+            let cluster_client: Api<NeonCluster> = Api::namespaced(client.clone(), &self.namespace().unwrap());
             let new_status = Patch::Apply(json!({
                 "apiVersion": "oltp.molnett.org/v1",
                 "kind": "NeonCluster",
                 "status": NeonClusterStatus {
-                    page_server_status: NeonClusterPageServerStatus{},
-                    storage_broker_status: NeonClusterStorageBrokerStatus{},
-                    safekeeper_status: NeonClusterSafeKeeperStatus{},
+                    conditions: Vec::new(),
+                    phase: Some(ClusterPhase::Pending.to_string()),
+                    page_server_status: NeonClusterPageServerStatus::default(),
+                    storage_broker_status: NeonClusterStorageBrokerStatus::default(),
+                    safekeeper_status: NeonClusterSafeKeeperStatus::default(),
                 }
             }));
 
@@ -52,6 +57,9 @@ impl NeonCluster {
                 .patch_status(&self.name_any(), &ps, &new_status)
                 .await
                 .map_err(|e| errors::Error::StdError(errors::StdError::KubeError(e)))?;
+            
+            // Set initial phase
+            status_manager.update_phase(ClusterPhase::Creating).await?;
         }
 
         // first reconcile storage broker

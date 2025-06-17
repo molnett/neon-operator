@@ -33,7 +33,7 @@ test-telemetry:
 
 # compile for linux arm64 (for docker image) using zigbuild cross-compilation
 compile features="":
-  cargo zigbuild --release --target aarch64-unknown-linux-gnu --features={{features}} -p operator
+  cargo zigbuild --release --features={{features}} -p operator
 
 [private]
 _build features="":
@@ -71,6 +71,6 @@ test-e2e-verbose: build-e2e-image
 cleanup-e2e:
   ./cleanup-e2e-clusters.sh
 
-# Clean up using cargo test (alternative method)  
+# Clean up using cargo test (alternative method)
 cleanup-e2e-rust:
   cargo test --package e2e_tests --test basic_e2e cleanup_test_clusters -- --ignored --nocapture

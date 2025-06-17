@@ -47,7 +47,7 @@ compile-x86 features="":
 [private]
 _build features="" arch="aarch64-unknown-linux-gnu":
   just compile {{arch}} {{features}}
-  docker build --build-arg TARGETARCH={{arch}} -t molnett/neon-operator:local-{{arch}} .
+  docker build --build-arg TARGETARCH={{arch}} -t molnett/neon-operator:local-{{arch}} -t molnett/neon-operator:local .
 
 # docker build base (arm64)
 build-base: (_build "" "aarch64-unknown-linux-gnu")

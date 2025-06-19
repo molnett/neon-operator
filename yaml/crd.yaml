@@ -49,16 +49,88 @@ spec:
             description: The status object of `NeonCluster`
             nullable: true
             properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      default: 0
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
               page_server_status:
-                description: The status object of `NeonCluster`
+                description: The status object of `NeonCluster` PageServer component
+                properties:
+                  ready:
+                    type: boolean
+                  ready_replicas:
+                    format: int32
+                    nullable: true
+                    type: integer
+                  replicas:
+                    format: int32
+                    nullable: true
+                    type: integer
+                required:
+                - ready
                 type: object
+              phase:
+                nullable: true
+                type: string
               safekeeper_status:
-                description: The status object of `NeonCluster`
+                description: The status object of `NeonCluster` SafeKeeper component
+                properties:
+                  ready:
+                    type: boolean
+                  ready_replicas:
+                    format: int32
+                    nullable: true
+                    type: integer
+                  replicas:
+                    format: int32
+                    nullable: true
+                    type: integer
+                required:
+                - ready
                 type: object
               storage_broker_status:
-                description: The status object of `NeonCluster`
+                description: The status object of `NeonCluster` StorageBroker component
+                properties:
+                  ready:
+                    type: boolean
+                  ready_replicas:
+                    format: int32
+                    nullable: true
+                    type: integer
+                  replicas:
+                    format: int32
+                    nullable: true
+                    type: integer
+                required:
+                - ready
                 type: object
             required:
+            - conditions
             - page_server_status
             - safekeeper_status
             - storage_broker_status
@@ -151,6 +223,9 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              phase:
+                nullable: true
+                type: string
             required:
             - conditions
             type: object
@@ -249,6 +324,9 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              phase:
+                nullable: true
+                type: string
             required:
             - conditions
             type: object

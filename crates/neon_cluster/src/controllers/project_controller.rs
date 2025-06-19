@@ -1,5 +1,6 @@
 use super::resources::*;
 use crate::util::errors::{Error, StdError};
+use crate::util::project_status::{ProjectPhase, ProjectStatusManager};
 use crate::util::{errors, errors::Result, metrics, telemetry};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
@@ -35,12 +36,24 @@ impl NeonProject {
 
         let project_client: Api<NeonProject> = Api::namespaced(ctx.client.clone(), &namespace);
 
+        // Initialize status manager
+        let status_manager = ProjectStatusManager::new(&ctx.client, self)?;
+
+        // Initialize status if not present
+        if self.status.is_none() {
+            status_manager.update_phase(ProjectPhase::Pending).await?;
+            status_manager.set_project_ready(false).await?;
+        }
+
         if self.spec.tenant_id.is_none() {
             // Set field and set field manager for this field
             // tenant_id is a 32 character alphanumeric string
             let mut bytes = [0; 16];
             rand::thread_rng().fill_bytes(&mut bytes);
             let tenant_id = hex::encode(bytes);
+
+            status_manager.update_phase(ProjectPhase::Creating).await?;
+            status_manager.set_tenant_created(false).await?;
 
             project_client
                 .patch(
@@ -63,27 +76,46 @@ impl NeonProject {
 
         // send http request to pageserver to ensure tenant is created
         let pageserver_url = format!(
-            //"http://pageserver-{}.neon.svc.cluster.local:6400/v1/tenant/{}/location_config",
-            "http://localhost:9898/v1/tenant/{}/location_config",
-            //self.spec.cluster_name.clone(),
+            "http://pageserver-{}.neon.svc.cluster.local:9898/v1/tenant/{}/location_config",
+            self.spec.cluster_name.clone(),
             self.spec.tenant_id.clone().unwrap()
         );
         let client = reqwest::Client::new();
 
-        let response = client
-            .put(pageserver_url)
+        match client
+            .put(&pageserver_url)
             .header("Content-Type", "application/json")
             .body(r#"{"mode": "AttachedSingle", "generation": 1, "tenant_conf": {}}"#)
             .send()
             .await
-            .unwrap();
-
-        if !response.status().is_success() {
-            println!("Failed to create tenant on pageserver: {:?}", response.status());
-            return Ok(Action::requeue(Duration::from_secs(5)));
+        {
+            Ok(response) => {
+                if !response.status().is_success() {
+                    tracing::warn!("Failed to create tenant on pageserver: {:?}", response.status());
+                    status_manager
+                        .set_tenant_failed(&format!("PageServer returned status: {}", response.status()))
+                        .await?;
+                    status_manager.set_pageserver_configured(false).await?;
+                    return Ok(Action::requeue(Duration::from_secs(5)));
+                }
+                tracing::info!("Successfully created tenant on pageserver");
+                status_manager.set_tenant_created(true).await?;
+                status_manager.set_pageserver_configured(true).await?;
+                status_manager.update_phase(ProjectPhase::Ready).await?;
+                status_manager.set_project_ready(true).await?;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to connect to pageserver at {}: {}. Will retry later.",
+                    pageserver_url,
+                    e
+                );
+                status_manager.set_pageserver_configured(false).await?;
+                return Ok(Action::requeue(Duration::from_secs(10)));
+            }
         }
 
-        // If no events were received, check back every 5 minutes
+        // If no events were received, check back every minute
         Ok(Action::requeue(Duration::from_secs(60)))
     }
 
@@ -170,9 +202,7 @@ pub async fn reconcile(neon_project: Arc<NeonProject>, ctx: Arc<Context>) -> Res
         },
     )
     .await
-    .map_err(|e| errors::Error::StdError(errors::StdError::FinalizerError(Box::new(e))))?;
-
-    Ok(Action::requeue(Duration::from_secs(5 * 60)))
+    .map_err(|e| errors::Error::StdError(errors::StdError::FinalizerError(Box::new(e))))
 }
 
 /// Diagnostics to be exposed by the web server

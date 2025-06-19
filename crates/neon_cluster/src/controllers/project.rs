@@ -27,6 +27,7 @@ pub async fn update_status(
                 reason: "ComputeNodeStarted".to_string(),
                 observed_generation: None,
             }],
+            phase: Some("Ready".to_string()),
         }
     } else {
         NeonProjectStatus {
@@ -38,6 +39,7 @@ pub async fn update_status(
                 reason: "ComputeNodeNotReady".to_string(),
                 observed_generation: None,
             }],
+            phase: Some("Pending".to_string()),
         }
     };
 

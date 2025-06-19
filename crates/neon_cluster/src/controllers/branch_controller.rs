@@ -2,12 +2,12 @@ use super::branch::{
     create_default_database, ensure_config_map, ensure_deployment, get_or_create_default_user,
     is_compute_node_ready,
 };
+use super::resources::*;
 use crate::util::branch_status::{
     BranchPhase, BranchStatusManager, DEFAULT_DATABASE_CREATED_CONDITION, DEFAULT_USER_CREATED_CONDITION,
 };
-use super::resources::*;
 use crate::util::errors::{Error, StdError};
-use crate::util::status::is_status_condition_true;
+use crate::util::status::{is_status_condition_false, is_status_condition_true};
 use crate::util::{errors, errors::Result, metrics, telemetry};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
@@ -50,12 +50,28 @@ impl NeonBranch {
         {
             Some(project) => project,
             None => {
-                let status_manager = BranchStatusManager::new(&client, self)?;
-                status_manager.set_compute_node_ready(false).await?;
-                status_manager.update_phase(BranchPhase::Failed).await?;
+                // Check current status to avoid unnecessary updates
+                tracing::info!("Project not found {}", self.spec.project_id);
+                let conditions = self
+                    .status
+                    .as_ref()
+                    .map_or_else(Vec::new, |s| s.conditions.clone());
+                let current_phase = self.status.as_ref().and_then(|s| s.phase.as_ref());
+
+                let compute_ready_false = is_status_condition_false(&conditions, "ComputeNodeReady");
+                let phase_is_failed = current_phase.is_some_and(|p| p == "Failed");
+
+                // Only update status if not already in the correct state
+                if !compute_ready_false || !phase_is_failed {
+                    let status_manager = BranchStatusManager::new(&client, self)?;
+                    status_manager.set_compute_node_ready(false).await?;
+                    status_manager.update_phase(BranchPhase::Failed).await?;
+                }
                 return Ok(Action::requeue(Duration::from_secs(15)));
             }
         };
+
+        tracing::info!("Project: {:?}", project);
 
         if self.spec.timeline_id.is_none() {
             // Set field and set field manager for this field
@@ -79,19 +95,21 @@ impl NeonBranch {
                 .await
                 .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 
+            tracing::info!("Timeline ID: {:?}", timeline_id);
+
             return Ok(Action::requeue(Duration::from_secs(1)));
         }
 
-        // send http request to pageserver to ensure tenant is created
+        // send http request to pageserver to ensure timeline is created
         let pageserver_url = format!(
-            //"http://pageserver-{}.neon.svc.cluster.local:6400/v1/tenant/{}/location_config",
-            "http://localhost:9898/v1/tenant/{}/timeline",
+            "http://pageserver-{}.neon.svc.cluster.local:9898/v1/tenant/{}/timeline",
+            project.spec.cluster_name,
             project.spec.tenant_id.clone().unwrap()
         );
         let http_client = reqwest::Client::new();
 
-        let response = http_client
-            .post(pageserver_url)
+        match http_client
+            .post(&pageserver_url)
             .header("Content-Type", "application/json")
             .body(format!(
                 r#"{{"new_timeline_id": "{}", "pg_version": {}}}"#,
@@ -100,11 +118,22 @@ impl NeonBranch {
             ))
             .send()
             .await
-            .unwrap();
-
-        if !response.status().is_success() {
-            println!("Failed to create tenant on pageserver: {:?}", response.status());
-            return Ok(Action::requeue(Duration::from_secs(5)));
+        {
+            Ok(response) => {
+                if !response.status().is_success() {
+                    tracing::warn!("Failed to create timeline on pageserver: {:?}", response.status());
+                    return Ok(Action::requeue(Duration::from_secs(5)));
+                }
+                tracing::info!("Successfully created timeline on pageserver");
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to connect to pageserver at {}: {}. Will retry later.",
+                    pageserver_url,
+                    e
+                );
+                return Ok(Action::requeue(Duration::from_secs(10)));
+            }
         }
 
         // Ensure ConfigMap exists
@@ -116,18 +145,32 @@ impl NeonBranch {
         // Check if Compute node is ready
         let compute_node_ready = is_compute_node_ready(&client, &namespace, &name).await?;
 
-        // Update status with compute node readiness state
-        // Update status using status manager
-        let status_manager = BranchStatusManager::new(&client, self)?;
-        status_manager.set_compute_node_ready(compute_node_ready).await?;
-        
-        let phase = if compute_node_ready { BranchPhase::Ready } else { BranchPhase::Pending };
-        status_manager.update_phase(phase).await?;
+        // Update status only if it has changed
+        let conditions = self
+            .status
+            .as_ref()
+            .map_or_else(Vec::new, |s| s.conditions.clone());
+        let current_compute_ready = is_status_condition_true(&conditions, "ComputeNodeReady");
+
+        if current_compute_ready != compute_node_ready {
+            let status_manager = BranchStatusManager::new(&client, self)?;
+            status_manager.set_compute_node_ready(compute_node_ready).await?;
+
+            let phase = if compute_node_ready {
+                BranchPhase::Ready
+            } else {
+                BranchPhase::Pending
+            };
+            status_manager.update_phase(phase).await?;
+        }
 
         if compute_node_ready {
             // Get conditions safely or use an empty vec
-            let conditions = self.status.as_ref().map_or_else(Vec::new, |s| s.conditions.clone());
-            
+            let conditions = self
+                .status
+                .as_ref()
+                .map_or_else(Vec::new, |s| s.conditions.clone());
+
             // Create default user and database if not already created
             if !is_status_condition_true(&conditions, DEFAULT_USER_CREATED_CONDITION) {
                 get_or_create_default_user(&client, &namespace, &name, self).await?;

@@ -3,6 +3,10 @@ name = "operator"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+telemetry = ["neon_cluster/telemetry"]
+
 [dependencies]
 actix-web = "4.8.0"
 anyhow = "1.0.86"

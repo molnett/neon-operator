@@ -138,15 +138,6 @@ impl<'a> BranchStatusManager<'a> {
         })
     }
 
-    // Get current conditions or empty vec if status is None
-    fn current_conditions(&self) -> Vec<Condition> {
-        self.branch
-            .status
-            .as_ref()
-            .map(|s| s.conditions.clone())
-            .unwrap_or_default()
-    }
-
     // Create a new condition
     fn create_condition(
         &self,
@@ -154,6 +145,7 @@ impl<'a> BranchStatusManager<'a> {
         status: bool,
         reason: StatusReason,
         message: StatusMessage,
+        observed_generation: Option<i64>,
     ) -> Condition {
         Condition {
             type_: condition_type.to_string(),
@@ -161,7 +153,7 @@ impl<'a> BranchStatusManager<'a> {
             last_transition_time: Time(chrono::Utc::now()),
             reason: reason.to_string(),
             message: message.to_string(),
-            observed_generation: None,
+            observed_generation,
         }
     }
 
@@ -173,19 +165,35 @@ impl<'a> BranchStatusManager<'a> {
         reason: StatusReason,
         message: StatusMessage,
     ) -> Result<()> {
-        let condition = self.create_condition(condition_type, status, reason, message);
-        let current_conditions = self.current_conditions();
+        // Get current branch to access metadata.generation
+        let branch_client: Api<NeonBranch> = Api::namespaced(self.client.clone(), &self.namespace);
+        let current_branch = branch_client
+            .get(&self.name)
+            .await
+            .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+
+        let condition = self.create_condition(
+            condition_type,
+            status,
+            reason,
+            message,
+            current_branch.metadata.generation,
+        );
+        let current_conditions = current_branch
+            .status
+            .as_ref()
+            .map(|s| s.conditions.clone())
+            .unwrap_or_default();
 
         let (updated_conditions, changed) = set_status_condition(&current_conditions, condition);
 
         if changed {
             let branch_client: Api<NeonBranch> = Api::namespaced(self.client.clone(), &self.namespace);
 
-            // Get current phase or default to Pending
+            // Get current phase from the fresh object or default to Pending
             let phase = match (condition_type, status) {
                 (COMPUTE_NODE_READY_CONDITION, true) => BranchPhase::Ready,
-                _ => self
-                    .branch
+                _ => current_branch
                     .status
                     .as_ref()
                     .and_then(|s| s.phase.as_ref())
@@ -255,15 +263,29 @@ impl<'a> BranchStatusManager<'a> {
 
     // Update branch phase
     pub async fn update_phase(&self, phase: BranchPhase) -> Result<()> {
-        // Only update if phase changed
-        if self
-            .branch
+        // Get current branch from API server
+        let branch_client: Api<NeonBranch> = Api::namespaced(self.client.clone(), &self.namespace);
+        let current_branch = branch_client
+            .get(&self.name)
+            .await
+            .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+
+        // Get current phase from the fresh object
+        let current_phase = current_branch
             .status
             .as_ref()
             .and_then(|s| s.phase.as_ref())
-            .map(|p| p != &phase.to_string())
-            .unwrap_or(true)
-        {
+            .map(|p| p.as_str());
+
+        let target_phase = phase.to_string();
+
+        // Only update if phase actually changed (or if no phase was set before)
+        let should_update = match current_phase {
+            Some(current) => current != target_phase,
+            None => true, // Only update once when transitioning from None to a value
+        };
+
+        if should_update {
             let branch_client: Api<NeonBranch> = Api::namespaced(self.client.clone(), &self.namespace);
 
             let patch = Patch::Merge(json!({

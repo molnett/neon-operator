@@ -24,6 +24,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "."
+          cache-targets: true
+          key: ${{ runner.os }}-rust-release-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

@@ -24,6 +24,29 @@ impl Display for PGVersion {
     }
 }
 
+/// Storage configuration for a component
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+pub struct StorageConfig {
+    /// Storage class to use for persistent volume claims
+    pub storage_class: Option<String>,
+    /// Size of the persistent volume
+    #[serde(default = "default_storage_size")]
+    pub size: String,
+}
+
+fn default_storage_size() -> String {
+    "10Gi".to_string()
+}
+
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self {
+            storage_class: None,
+            size: default_storage_size(),
+        }
+    }
+}
+
 /// Generate the Kubernetes wrapper struct `NeonCluster` from our Spec and Status struct
 ///
 /// This provides a hook for generating the CRD yaml (in crdgen.rs)
@@ -39,6 +62,12 @@ pub struct NeonClusterSpec {
     #[serde(default = "default_neon_image")]
     pub neon_image: String,
     pub bucket_credentials_secret: String,
+    /// Storage configuration for pageserver persistent volumes
+    #[serde(default)]
+    pub pageserver_storage: StorageConfig,
+    /// Storage configuration for safekeeper persistent volumes
+    #[serde(default)]
+    pub safekeeper_storage: StorageConfig,
 }
 
 fn default_num_safekeepers() -> u8 {

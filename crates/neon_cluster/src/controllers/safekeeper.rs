@@ -2,8 +2,9 @@ use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EnvVar, EnvVarSource, ObjectFieldSelector, PodSpec, PodTemplateSpec, Service,
-    ServicePort, ServiceSpec,
+    Container, ContainerPort, EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim, 
+    PersistentVolumeClaimSpec, PodSpec, PodTemplateSpec, ResourceRequirements, Service,
+    ServicePort, ServiceSpec, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta, OwnerReference};
 
@@ -51,6 +52,7 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
         &ns,
         &name,
         &neon_cluster.metadata.name.clone().unwrap(),
+        &neon_cluster.spec,
         &oref,
     )
     .await?;
@@ -64,10 +66,11 @@ async fn reconcile_statefulset(
     namespace: &str,
     name: &str,
     cluster_name: &str,
+    cluster_spec: &crate::controllers::resources::NeonClusterSpec,
     oref: &OwnerReference,
 ) -> Result<()> {
     let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
-    let desired_statefulset = create_desired_statefulset(namespace, name, cluster_name, oref);
+    let desired_statefulset = create_desired_statefulset(namespace, name, cluster_name, cluster_spec, oref);
 
     match statefulsets.get(name).await {
         Ok(existing) => {
@@ -199,13 +202,14 @@ fn create_desired_statefulset(
     namespace: &str,
     name: &str,
     cluster_name: &str,
+    cluster_spec: &crate::controllers::resources::NeonClusterSpec,
     oref: &OwnerReference,
 ) -> StatefulSet {
     let mut labels = BTreeMap::new();
     labels.insert("app.kubernetes.io/name".to_string(), "safekeeper".to_string());
 
     let safekeeper_command = format!(
-        "/usr/local/bin/safekeeper --id=$(echo ${{POD_NAME##*-}} | tr -d '-') --broker-endpoint=http://storage-broker-{}:50051 --listen-pg=0.0.0.0:5454 --listen-http=0.0.0.0:7676 --advertise-pg=${{POD_NAME}}:5454",
+        "/usr/local/bin/safekeeper --id=$(echo ${{POD_NAME##*-}} | tr -d '-') --broker-endpoint=http://storage-broker-{}:50051 --listen-pg=0.0.0.0:5454 --listen-http=0.0.0.0:7676 --advertise-pg=${{POD_NAME}}:5454 --datadir=/data",
         cluster_name,
     );
 
@@ -219,7 +223,7 @@ fn create_desired_statefulset(
         },
         spec: Some(StatefulSetSpec {
             service_name: "safekeeper".to_string(),
-            replicas: Some(3),
+            replicas: Some(cluster_spec.num_safekeepers as i32),
             selector: LabelSelector {
                 match_labels: Some(labels.clone()),
                 ..Default::default()
@@ -263,11 +267,39 @@ fn create_desired_statefulset(
                                 ..Default::default()
                             },
                         ]),
+                        volume_mounts: Some(vec![VolumeMount {
+                            name: "safekeeper-storage".to_string(),
+                            mount_path: "/data".to_string(),
+                            ..Default::default()
+                        }]),
                         ..Default::default()
                     }],
                     ..Default::default()
                 }),
             },
+            volume_claim_templates: Some(vec![PersistentVolumeClaim {
+                metadata: ObjectMeta {
+                    name: Some("safekeeper-storage".to_string()),
+                    ..Default::default()
+                },
+                spec: Some(PersistentVolumeClaimSpec {
+                    access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+                    storage_class_name: cluster_spec.safekeeper_storage.storage_class.clone(),
+                    resources: Some(ResourceRequirements {
+                        requests: Some({
+                            let mut map = std::collections::BTreeMap::new();
+                            map.insert(
+                                "storage".to_string(),
+                                k8s_openapi::apimachinery::pkg::api::resource::Quantity(cluster_spec.safekeeper_storage.size.clone()),
+                            );
+                            map
+                        }),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }]),
             ..Default::default()
         }),
         ..Default::default()
@@ -288,6 +320,9 @@ fn statefulset_needs_update(existing: &StatefulSet, desired: &StatefulSet) -> bo
             != desired_spec.template.spec.as_ref().unwrap().containers[0].args
         || existing_spec.template.spec.as_ref().unwrap().containers[0].env
             != desired_spec.template.spec.as_ref().unwrap().containers[0].env
+        || existing_spec.template.spec.as_ref().unwrap().containers[0].volume_mounts
+            != desired_spec.template.spec.as_ref().unwrap().containers[0].volume_mounts
+        || existing_spec.volume_claim_templates != desired_spec.volume_claim_templates
 }
 
 fn service_needs_update(existing: &Service, desired: &Service) -> bool {

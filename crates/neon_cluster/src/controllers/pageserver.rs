@@ -51,6 +51,7 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
         &ns,
         &name,
         &neon_cluster.spec.bucket_credentials_secret,
+        &neon_cluster.spec,
         &oref,
     )
     .await?;
@@ -104,11 +105,12 @@ async fn reconcile_statefulset(
     namespace: &str,
     cluster_name: &str,
     bucket_credentials_secret: &str,
+    cluster_spec: &crate::controllers::resources::NeonClusterSpec,
     oref: &OwnerReference,
 ) -> Result<()> {
     let statefulsets: Api<StatefulSet> = Api::namespaced(client.clone(), namespace);
     let desired_statefulset =
-        create_desired_statefulset(namespace, cluster_name, bucket_credentials_secret, oref);
+        create_desired_statefulset(namespace, cluster_name, bucket_credentials_secret, cluster_spec, oref);
 
     match statefulsets.get(cluster_name).await {
         Ok(existing) => {
@@ -251,6 +253,7 @@ fn create_desired_statefulset(
     namespace: &str,
     cluster_name: &str,
     bucket_credentials_secret: &str,
+    cluster_spec: &crate::controllers::resources::NeonClusterSpec,
     oref: &OwnerReference,
 ) -> StatefulSet {
     let mut labels = BTreeMap::new();
@@ -414,12 +417,13 @@ fn create_desired_statefulset(
                 },
                 spec: Some(k8s_openapi::api::core::v1::PersistentVolumeClaimSpec {
                     access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+                    storage_class_name: cluster_spec.pageserver_storage.storage_class.clone(),
                     resources: Some(k8s_openapi::api::core::v1::ResourceRequirements {
                         requests: Some({
                             let mut map = BTreeMap::new();
                             map.insert(
                                 "storage".to_string(),
-                                k8s_openapi::apimachinery::pkg::api::resource::Quantity("10Gi".to_string()),
+                                k8s_openapi::apimachinery::pkg::api::resource::Quantity(cluster_spec.pageserver_storage.size.clone()),
                             );
                             map
                         }),

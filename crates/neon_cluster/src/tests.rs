@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use crate::controllers::cluster_controller::State;
-    use crate::controllers::resources::NeonCluster;
+    use crate::controllers::cluster_controller::{reconcile, State};
+    use crate::controllers::resources::{NeonCluster, StorageConfig};
     use crate::controllers::resources::{NeonClusterSpec, PGVersion};
 
     use k8s_openapi::api::apps::v1::Deployment;
-    use kube::Client;
     use kube::api::{Api, ObjectMeta, Patch, PatchParams};
+    use kube::Client;
 
     #[tokio::test]
     #[ignore = "uses k8s current-context"]
@@ -26,6 +26,14 @@ mod tests {
                 default_pg_version: PGVersion::PG15,
                 neon_image: "neondatabase/neon:latest".to_string(),
                 bucket_credentials_secret: "neon-bucket-credentials".to_string(),
+                pageserver_storage: StorageConfig {
+                    storage_class: None,
+                    size: "1Gi".to_string(),
+                },
+                safekeeper_storage: StorageConfig {
+                    storage_class: None,
+                    size: "500Mi".to_string(),
+                },
             },
             status: None,
         };

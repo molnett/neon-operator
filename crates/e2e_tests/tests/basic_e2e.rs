@@ -3,6 +3,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{api::PostParams, Api};
 use neon_cluster::controllers::resources::{
     NeonBranch, NeonBranchSpec, NeonCluster, NeonClusterSpec, NeonProject, NeonProjectSpec, PGVersion,
+    StorageConfig,
 };
 use serial_test::serial;
 use std::time::Duration;
@@ -67,11 +68,12 @@ async fn test_operator_health() {
         }
 
         tracing::info!("✅ Operator health test passed");
-    }.await;
+    }
+    .await;
 
     // Ensure cleanup happens regardless of test result
     let cleanup_result = cleanup_test_env(env).await;
-    
+
     // Log cleanup result
     if cleanup_result.is_err() {
         tracing::warn!("Test cleanup had issues, but continuing with test result");
@@ -80,7 +82,6 @@ async fn test_operator_health() {
     // Return the test result (will panic if test failed)
     test_result
 }
-
 
 #[tokio::test]
 #[serial]
@@ -132,11 +133,12 @@ async fn test_branch_creation() {
         assert!(updated_branch.status.is_some(), "Branch should have status");
 
         tracing::info!("✅ Branch creation test passed");
-    }.await;
+    }
+    .await;
 
     // Ensure cleanup happens regardless of test result
     let cleanup_result = cleanup_test_env(env).await;
-    
+
     // Log cleanup result
     if cleanup_result.is_err() {
         tracing::warn!("Test cleanup had issues, but continuing with test result");
@@ -202,6 +204,14 @@ async fn create_test_cluster(env: &TestEnv) {
             default_pg_version: PGVersion::PG16,
             neon_image: "neondatabase/neon:latest".to_string(),
             bucket_credentials_secret: "test-bucket-creds".to_string(),
+            pageserver_storage: StorageConfig {
+                storage_class: None,
+                size: "1Gi".to_string(),
+            },
+            safekeeper_storage: StorageConfig {
+                storage_class: None,
+                size: "500Mi".to_string(),
+            },
         },
         status: None,
     };
@@ -295,15 +305,15 @@ async fn cleanup_test_clusters() {
 // Explicit cleanup function that ensures Kind cluster is deleted
 async fn cleanup_test_env(env: TestEnv) -> Result<(), Box<dyn std::error::Error>> {
     let cluster_name = env.cluster_name.clone();
-    
+
     tracing::info!("Explicitly cleaning up test environment: {}", cluster_name);
-    
+
     // Drop the environment to trigger normal cleanup
     drop(env);
-    
+
     // Give some time for the async cleanup to start
     tokio::time::sleep(Duration::from_secs(2)).await;
-    
+
     // Force cleanup of Kind cluster to ensure it's deleted
     if let Err(e) = force_cleanup_kind_cluster(&cluster_name).await {
         tracing::warn!("Failed to force cleanup Kind cluster {}: {}", cluster_name, e);
@@ -311,14 +321,14 @@ async fn cleanup_test_env(env: TestEnv) -> Result<(), Box<dyn std::error::Error>
     } else {
         tracing::info!("Successfully cleaned up Kind cluster: {}", cluster_name);
     }
-    
+
     Ok(())
 }
 
 // Force cleanup of Kind cluster
 async fn force_cleanup_kind_cluster(cluster_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     use tokio::process::Command;
-    
+
     tracing::debug!("Force deleting Kind cluster: {}", cluster_name);
 
     let output = Command::new("kind")
@@ -332,11 +342,7 @@ async fn force_cleanup_kind_cluster(cluster_name: &str) -> Result<(), Box<dyn st
             tracing::debug!("Kind cluster {} already deleted", cluster_name);
             return Ok(());
         }
-        return Err(format!(
-            "Failed to delete Kind cluster {}: {}",
-            cluster_name,
-            stderr
-        ).into());
+        return Err(format!("Failed to delete Kind cluster {}: {}", cluster_name, stderr).into());
     }
 
     Ok(())

@@ -42,6 +42,36 @@ spec:
                 format: uint8
                 minimum: 0.0
                 type: integer
+              pageserver_storage:
+                default:
+                  size: 10Gi
+                  storage_class: null
+                description: Storage configuration for pageserver persistent volumes
+                properties:
+                  size:
+                    default: 10Gi
+                    description: Size of the persistent volume
+                    type: string
+                  storage_class:
+                    description: Storage class to use for persistent volume claims
+                    nullable: true
+                    type: string
+                type: object
+              safekeeper_storage:
+                default:
+                  size: 10Gi
+                  storage_class: null
+                description: Storage configuration for safekeeper persistent volumes
+                properties:
+                  size:
+                    default: 10Gi
+                    description: Size of the persistent volume
+                    type: string
+                  storage_class:
+                    description: Storage class to use for persistent volume claims
+                    nullable: true
+                    type: string
+                type: object
             required:
             - bucket_credentials_secret
             type: object

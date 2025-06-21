@@ -5,3 +5,11 @@ metadata:
   namespace: neon
 spec:
   bucket_credentials_secret: tigris-bucket
+  # Storage configuration for pageserver
+  pageserver_storage:
+    storage_class: fast-ssd # Optional: specify storage class
+    size: 20Gi # Optional: storage size (default: 10Gi)
+  # Storage configuration for safekeeper
+  safekeeper_storage:
+    storage_class: standard # Optional: specify storage class
+    size: 5Gi # Optional: storage size (default: 10Gi)

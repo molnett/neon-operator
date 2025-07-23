@@ -34,15 +34,22 @@ impl Display for PGVersion {
 pub struct NeonClusterSpec {
     #[serde(default = "default_num_safekeepers")]
     pub num_safekeepers: u8,
+    #[serde(default = "default_num_pageservers")]
+    pub num_pageservers: i32,
     #[serde(default = "default_pg_version")]
     pub default_pg_version: PGVersion,
     #[serde(default = "default_neon_image")]
     pub neon_image: String,
+
     pub bucket_credentials_secret: String,
+    pub storage_controller_database_url: String,
 }
 
 fn default_num_safekeepers() -> u8 {
     3
+}
+fn default_num_pageservers() -> i32 {
+    1
 }
 fn default_pg_version() -> PGVersion {
     PGVersion::PG16

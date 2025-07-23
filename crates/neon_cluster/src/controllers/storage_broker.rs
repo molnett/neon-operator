@@ -27,7 +27,7 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
         Some(name) => format!("storage-broker-{}", name),
         None => {
             return Err(Error::ErrorWithRequeue(ErrorWithRequeue::new(
-                StdError::MetadataMissing("Name should always be set on an existing object"),
+                StdError::MetadataMissing("Name should always be set on an existing object".to_string()),
                 Duration::from_secs(5 * 60),
             )));
         }

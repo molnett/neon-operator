@@ -14,8 +14,8 @@ pub const COMPUTE_NODE_READY_CONDITION: &str = "ComputeNodeReady";
 pub const DEFAULT_USER_CREATED_CONDITION: &str = "DefaultUserCreated";
 pub const DEFAULT_DATABASE_CREATED_CONDITION: &str = "DefaultDatabaseCreated";
 
-// Field manager for status updates
-pub const STATUS_FIELD_MANAGER: &str = "neon-branch-status-manager";
+// Field manager for status updates - must match the branch controller's field manager
+pub const STATUS_FIELD_MANAGER: &str = "neon-branch-controller";
 
 // Phase represents the high-level status of a NeonBranch
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -119,22 +119,21 @@ pub struct BranchStatusManager<'a> {
     client: &'a kube::Client,
     namespace: String,
     name: String,
-    branch: &'a NeonBranch,
 }
 
 impl<'a> BranchStatusManager<'a> {
     pub fn new(client: &'a kube::Client, branch: &'a NeonBranch) -> Result<Self> {
-        let namespace =
-            branch.metadata.namespace.clone().ok_or_else(|| {
-                Error::StdError(StdError::MetadataMissing("Branch resource has no namespace"))
-            })?;
+        let namespace = branch.metadata.namespace.clone().ok_or_else(|| {
+            Error::StdError(StdError::MetadataMissing(
+                "Branch resource has no namespace".to_string(),
+            ))
+        })?;
         let name = branch.metadata.name.clone().unwrap_or_default();
 
         Ok(Self {
             client,
             namespace,
             name,
-            branch,
         })
     }
 

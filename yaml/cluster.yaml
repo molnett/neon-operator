@@ -4,4 +4,6 @@ metadata:
   name: basic-cluster
   namespace: neon
 spec:
+  num_pageservers: 3
   bucket_credentials_secret: tigris-bucket
+  storage_controller_database_url: "postgresql://user:pass@storage-controller/db"

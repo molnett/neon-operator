@@ -5,8 +5,8 @@ mod tests {
     use crate::controllers::resources::{NeonClusterSpec, PGVersion};
 
     use k8s_openapi::api::apps::v1::Deployment;
-    use kube::Client;
     use kube::api::{Api, ObjectMeta, Patch, PatchParams};
+    use kube::Client;
 
     #[tokio::test]
     #[ignore = "uses k8s current-context"]
@@ -23,9 +23,11 @@ mod tests {
             },
             spec: NeonClusterSpec {
                 num_safekeepers: 3,
-                default_pg_version: PGVersion::PG15,
+                num_pageservers: 3,
+                default_pg_version: PGVersion::PG16,
                 neon_image: "neondatabase/neon:latest".to_string(),
                 bucket_credentials_secret: "neon-bucket-credentials".to_string(),
+                storage_controller_database_url: "storage-controller-pg-cluster".to_string(),
             },
             status: None,
         };

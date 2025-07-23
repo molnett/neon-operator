@@ -4,10 +4,7 @@ use crate::util::project_status::{ProjectPhase, ProjectStatusManager};
 use crate::util::{errors, errors::Result, metrics, telemetry};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
-use k8s_openapi::api::{
-    apps::v1::{Deployment, StatefulSet},
-    core::v1::Service,
-};
+use k8s_openapi::api::{apps::v1::Deployment, core::v1::Service};
 use kube::{
     api::{Api, ListParams, Patch, PatchParams, ResourceExt},
     client::Client,
@@ -76,10 +73,11 @@ impl NeonProject {
 
         // send http request to pageserver to ensure tenant is created
         let pageserver_url = format!(
-            "http://pageserver-{}.neon.svc.cluster.local:9898/v1/tenant/{}/location_config",
+            "http://storage-controller-{}:8080/v1/tenant/{}/location_config",
             self.spec.cluster_name.clone(),
             self.spec.tenant_id.clone().unwrap()
         );
+        tracing::info!("Sending request to pageserver: {}", pageserver_url);
         let client = reqwest::Client::new();
 
         match client
@@ -121,16 +119,19 @@ impl NeonProject {
 
     // Finalizer cleanup (the object was deleted, ensure nothing is orphaned)
     async fn cleanup(&self, ctx: Arc<Context>) -> Result<Action> {
-        let recorder = ctx.diagnostics.read().await.recorder(ctx.client.clone(), self);
+        let recorder = ctx.diagnostics.read().await.recorder(ctx.client.clone());
         // PRoject doesn't have any real cleanup, so we just publish an event
         recorder
-            .publish(Event {
-                type_: EventType::Normal,
-                reason: "DeleteRequested".into(),
-                note: Some(format!("Delete `{}`", self.name_any())),
-                action: "Deleting".into(),
-                secondary: None,
-            })
+            .publish(
+                &Event {
+                    type_: EventType::Normal,
+                    reason: "DeleteRequested".into(),
+                    note: Some(format!("Delete `{}`", self.name_any())),
+                    action: "Deleting".into(),
+                    secondary: None,
+                },
+                &self.object_ref(&()),
+            )
             .await
             .map_err(|e| errors::Error::StdError(errors::StdError::KubeError(e)))?;
         Ok(Action::await_change())
@@ -222,8 +223,8 @@ impl Default for Diagnostics {
     }
 }
 impl Diagnostics {
-    fn recorder(&self, client: Client, neon_project: &NeonProject) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), neon_project.object_ref(&()))
+    fn recorder(&self, client: Client) -> Recorder {
+        Recorder::new(client, self.reporter.clone())
     }
 }
 
@@ -245,13 +246,8 @@ pub async fn run(state: State) {
     }
 
     Controller::new(neonclusters, Config::default().any_semantic())
-        .owns(
-            Api::<StatefulSet>::all(client.clone()),
-            watcher::Config::default(),
-        )
         .owns(Api::<Service>::all(client.clone()), watcher::Config::default())
         .owns(Api::<Deployment>::all(client.clone()), watcher::Config::default())
-        .shutdown_on_signal()
         .run(reconcile, error_policy, state.to_context(client))
         .filter_map(|x| async move { std::result::Result::ok(x) })
         .for_each(|_| futures::future::ready(()))

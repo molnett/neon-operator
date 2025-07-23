@@ -16,8 +16,8 @@ pub const PAGESERVER_READY_CONDITION: &str = "PageServerReady";
 pub const SAFEKEEPER_READY_CONDITION: &str = "SafeKeeperReady";
 pub const STORAGE_BROKER_READY_CONDITION: &str = "StorageBrokerReady";
 
-// Field manager for status updates
-pub const STATUS_FIELD_MANAGER: &str = "neon-cluster-status-manager";
+// Field manager for status updates - must match the cluster controller's field manager
+pub const STATUS_FIELD_MANAGER: &str = "neon-cluster-controller";
 
 // Phase represents the high-level status of a NeonCluster
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

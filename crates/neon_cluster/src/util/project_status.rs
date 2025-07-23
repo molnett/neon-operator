@@ -15,8 +15,8 @@ pub const PROJECT_READY_CONDITION: &str = "Ready";
 pub const TENANT_CREATED_CONDITION: &str = "TenantCreated";
 pub const PAGESERVER_CONFIGURED_CONDITION: &str = "PageServerConfigured";
 
-// Field manager for status updates
-pub const STATUS_FIELD_MANAGER: &str = "neon-project-status-manager";
+// Field manager for status updates - must match the project controller's field manager
+pub const STATUS_FIELD_MANAGER: &str = "neon-project-controller";
 
 // Phase represents the high-level status of a NeonProject
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

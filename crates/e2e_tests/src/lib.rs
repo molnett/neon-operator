@@ -162,9 +162,7 @@ async fn deploy_operator(client: &Client, namespace: &str) -> Result<(), Box<dyn
     tracing::info!("Deploying operator");
 
     let operator_yaml = format!(
-        r#"
----
-apiVersion: v1
+        r#"apiVersion: v1
 kind: ServiceAccount
 metadata:
     name: neon-operator
@@ -261,7 +259,7 @@ roleRef:
     kind: ClusterRole
     name: neon-operator
 subjects:
-    - kind: ServiceAccount
+  - kind: ServiceAccount
     name: neon-operator
     namespace: {}
 ---
@@ -271,40 +269,40 @@ metadata:
     name: neon-operator
     namespace: {}
     labels:
-    app: neon-operator
+        app: neon-operator
 spec:
     replicas: 1
     selector:
-    matchLabels:
-        app: neon-operator
+        matchLabels:
+            app: neon-operator
     template:
-    metadata:
-        labels:
-        app: neon-operator
-    spec:
-        serviceAccountName: neon-operator
-        securityContext:
-        runAsNonRoot: true
-        seccompProfile:
-            type: RuntimeDefault
-        containers:
-        - name: operator
-            image: molnett/neon-operator
-            imagePullPolicy: Always
-            command:
-            - /app/operator
+        metadata:
+            labels:
+                app: neon-operator
+        spec:
+            serviceAccountName: neon-operator
             securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-                drop:
-                - ALL
-            resources:
-            limits:
-                cpu: 500m
-                memory: 512Mi
-            requests:
-                cpu: 100m
-                memory: 128Mi
+                runAsNonRoot: true
+                seccompProfile:
+                    type: RuntimeDefault
+            containers:
+            - name: operator
+              image: molnett/neon-operator:local
+              imagePullPolicy: Never
+              command:
+              - /app/operator
+              securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                      drop:
+                      - ALL
+              resources:
+                  limits:
+                      cpu: 500m
+                      memory: 512Mi
+                  requests:
+                      cpu: 100m
+                      memory: 128Mi
 ---
 apiVersion: v1
 kind: Service
@@ -313,12 +311,11 @@ metadata:
     namespace: {}
 spec:
     selector:
-    app: neon-operator
+        app: neon-operator
     ports:
     - name: http
-        port: 8080
-        targetPort: 8080
----
+      port: 8080
+      targetPort: 8080
 "#,
         namespace, namespace, namespace, namespace
     );

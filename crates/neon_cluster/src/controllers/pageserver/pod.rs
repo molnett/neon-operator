@@ -1,3 +1,4 @@
+use crate::controllers::resources::{NeonCluster, NEON_CLUSTER_FINALIZER};
 use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 
 use k8s_openapi::api::core::v1::{
@@ -7,11 +8,11 @@ use k8s_openapi::api::core::v1::{
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference};
 
-use kube::ResourceExt;
 use kube::{
     api::{Patch, PatchParams, PostParams},
     Api, Client,
 };
+use kube::{Resource, ResourceExt};
 
 use rand::Rng;
 use serde_json::json;
@@ -52,7 +53,7 @@ pub fn generate_unique_pageserver_id(existing_ids: &[String]) -> String {
 pub async fn reconcile_single_pageserver_pod(
     client: &Client,
     namespace: &str,
-    cluster_name: &str,
+    neon_cluster: &NeonCluster,
     pageserver_id: &str,
     bucket_credentials_secret: &str,
     oref: &OwnerReference,
@@ -68,11 +69,11 @@ pub async fn reconcile_single_pageserver_pod(
         }
         Err(kube::Error::Api(api_err)) if api_err.code == 404 => {
             // Pod doesn't exist, create PVC and then pod
-            create_pageserver_pvc(client, namespace, cluster_name, pageserver_id, oref).await?;
+            create_pageserver_pvc(client, namespace, neon_cluster, pageserver_id, oref).await?;
             create_pageserver_pod(
                 client,
                 namespace,
-                cluster_name,
+                neon_cluster,
                 pageserver_id,
                 bucket_credentials_secret,
                 oref,
@@ -88,7 +89,7 @@ pub async fn reconcile_single_pageserver_pod(
 async fn create_pageserver_pvc(
     client: &Client,
     namespace: &str,
-    cluster_name: &str,
+    neon_cluster: &NeonCluster,
     pageserver_id: &str,
     oref: &OwnerReference,
 ) -> Result<()> {
@@ -106,7 +107,14 @@ async fn create_pageserver_pvc(
             let mut labels = BTreeMap::new();
             labels.insert(
                 "app.kubernetes.io/name".to_string(),
-                format!("pageserver-{}", cluster_name),
+                format!(
+                    "pageserver-{}",
+                    neon_cluster
+                        .metadata
+                        .name
+                        .clone()
+                        .expect("Kubernetes object without name in Metadata")
+                ),
             );
             labels.insert(
                 "app.kubernetes.io/component".to_string(),
@@ -124,10 +132,14 @@ async fn create_pageserver_pvc(
                 },
                 spec: Some(PersistentVolumeClaimSpec {
                     access_modes: Some(vec!["ReadWriteOnce".to_string()]),
+                    storage_class_name: neon_cluster.spec.pageserver_storage.storage_class.clone(),
                     resources: Some(k8s_openapi::api::core::v1::VolumeResourceRequirements {
                         requests: Some({
                             let mut map = BTreeMap::new();
-                            map.insert("storage".to_string(), Quantity("10Gi".to_string()));
+                            map.insert(
+                                "storage".to_string(),
+                                Quantity(neon_cluster.spec.pageserver_storage.size.clone()),
+                            );
                             map
                         }),
                         ..Default::default()
@@ -151,11 +163,16 @@ async fn create_pageserver_pvc(
 async fn create_pageserver_pod(
     client: &Client,
     namespace: &str,
-    cluster_name: &str,
+    neon_cluster: &NeonCluster,
     pageserver_id: &str,
     bucket_credentials_secret: &str,
     oref: &OwnerReference,
 ) -> Result<()> {
+    let cluster_name = neon_cluster
+        .metadata
+        .name
+        .clone()
+        .expect("Kubernetes object without name in Metadata");
     let pod_name = format!("pageserver-{}", pageserver_id);
     let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
 
@@ -173,7 +190,7 @@ async fn create_pageserver_pod(
     let pod = create_pageserver_pod_spec(
         namespace,
         &pod_name,
-        cluster_name,
+        neon_cluster,
         pageserver_id,
         bucket_credentials_secret,
         labels,
@@ -272,12 +289,17 @@ async fn trigger_pageserver_drain(pod: &Pod) -> Result<()> {
 fn create_pageserver_pod_spec(
     namespace: &str,
     pod_name: &str,
-    cluster_name: &str,
+    neon_cluster: &NeonCluster,
     pageserver_id: &str,
     bucket_credentials_secret: &str,
     labels: BTreeMap<String, String>,
     oref: &OwnerReference,
 ) -> Pod {
+    let cluster_name = neon_cluster
+        .metadata
+        .name
+        .clone()
+        .expect("Kubernetes object without name in Metadata");
     Pod {
         metadata: ObjectMeta {
             name: Some(pod_name.to_string()),

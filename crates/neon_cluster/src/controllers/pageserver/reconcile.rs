@@ -46,7 +46,7 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
         &ctx.client,
         &ns,
         &name,
-        &neon_cluster.name_any(),
+        &cluster_name,
         &neon_cluster.spec.bucket_credentials_secret,
         &oref,
     )
@@ -56,7 +56,7 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
     reconcile_pageserver_pods(
         &ctx.client,
         &ns,
-        cluster_name,
+        neon_cluster,
         &neon_cluster.spec.bucket_credentials_secret,
         neon_cluster.spec.num_pageservers,
         &oref,
@@ -74,11 +74,13 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
 async fn reconcile_pageserver_pods(
     client: &Client,
     namespace: &str,
-    cluster_name: &str,
+    neon_cluster: &NeonCluster,
     bucket_credentials_secret: &str,
     num_pageservers: i32,
     oref: &OwnerReference,
 ) -> Result<()> {
+    let cluster_name = neon_cluster.metadata.name.as_ref().unwrap();
+
     // Get existing pageserver pods
     let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
     let mut labels = BTreeMap::new();
@@ -122,7 +124,7 @@ async fn reconcile_pageserver_pods(
             pod::reconcile_single_pageserver_pod(
                 client,
                 namespace,
-                cluster_name,
+                neon_cluster,
                 &new_id,
                 bucket_credentials_secret,
                 oref,

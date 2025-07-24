@@ -3,6 +3,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{api::PostParams, Api};
 use neon_cluster::controllers::resources::{
     NeonBranch, NeonBranchSpec, NeonCluster, NeonClusterSpec, NeonProject, NeonProjectSpec, PGVersion,
+    StorageConfig,
 };
 use serial_test::serial;
 use std::time::Duration;
@@ -396,6 +397,14 @@ async fn create_test_cluster(env: &TestEnv) {
             default_pg_version: PGVersion::PG16,
             neon_image: "neondatabase/neon:latest".to_string(),
             bucket_credentials_secret: "test-bucket-creds".to_string(),
+            pageserver_storage: StorageConfig {
+                storage_class: None,
+                size: "1Gi".to_string(),
+            },
+            safekeeper_storage: StorageConfig {
+                storage_class: None,
+                size: "1Gi".to_string(),
+            },
         },
         status: None,
     };

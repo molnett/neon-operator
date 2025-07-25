@@ -33,8 +33,6 @@ jobs:
           cache-targets: true
           # Share cache across all workflows
           prefix-key: v1-neon-operator
-          # Only save on successful builds on main branch
-          save-if: ${{ github.ref == 'refs/heads/main' && job.status == 'success' }}
 
       - name: Install just
         uses: extractions/setup-just@v2

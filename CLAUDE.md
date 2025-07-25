@@ -85,3 +85,12 @@ The operator exposes HTTP endpoints on port 8080:
 Environment variables:
 - `RUST_LOG` - Controls logging levels (e.g., `info,kube=debug,controller=debug`)
 - `OPENTELEMETRY_ENDPOINT_URL` - OpenTelemetry collector endpoint for tracing
+
+## Error Handling
+
+Follow error handling guidelines in CONTRIBUTING.md. Prefer proper error propagation over unwrap in controller logic. Key principles:
+
+- Use `.unwrap()` only in tests, impossible cases (with comments), or programming bug detection
+- Handle Kubernetes API errors, CRD validation, and external requests with proper error types
+- Controllers should return `Result<Action<()>, Error>` and use error types from `util/errors.rs`
+- Always validate user-provided CRD specifications rather than unwrapping optional fields

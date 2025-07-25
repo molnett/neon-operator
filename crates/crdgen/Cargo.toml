@@ -16,3 +16,6 @@ neon_cluster = { "path" = "../neon_cluster" }
 [dependencies.kube]
 features = ["runtime", "client", "derive"]
 version = "1.1.0"
+
+[lints]
+workspace = true

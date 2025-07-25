@@ -1,5 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-    'crates/crdgen', "crates/neon_cluster", "crates/operator", "crates/e2e_tests"
+    'crates/crdgen',
+    "crates/neon_cluster",
+    "crates/operator",
+    "crates/e2e_tests",
 ]
+
+[workspace.lints.clippy]
+unwrap_used = { level = "warn", priority = 1 }

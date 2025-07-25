@@ -3,8 +3,8 @@ use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim,
-    PersistentVolumeClaimSpec, PodSpec, PodTemplateSpec, ResourceRequirements, Service, ServicePort,
-    ServiceSpec, VolumeMount, VolumeResourceRequirements,
+    PersistentVolumeClaimSpec, PodSpec, PodTemplateSpec, Service, ServicePort, ServiceSpec, VolumeMount,
+    VolumeResourceRequirements,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta, OwnerReference};
 

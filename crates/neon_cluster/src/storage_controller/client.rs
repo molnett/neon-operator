@@ -35,7 +35,13 @@ impl StorageControllerClient {
             ))));
         }
 
-        let tenant_info: TenantShardResponse = response.json().await.unwrap();
+        let tenant_info: TenantShardResponse = response.json().await.map_err(|e| {
+            error!("Failed to parse JSON response: {}", e);
+            Error::StdError(StdError::SerializationError(format!(
+                "Failed to parse tenant info JSON: {}",
+                e
+            )))
+        })?;
 
         // Find the shard with matching tenant_shard_id
         let primary_shard = tenant_info

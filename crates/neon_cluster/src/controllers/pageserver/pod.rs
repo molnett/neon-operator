@@ -1,4 +1,4 @@
-use crate::controllers::resources::{NeonCluster, NEON_CLUSTER_FINALIZER};
+use crate::controllers::resources::NeonCluster;
 use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 
 use k8s_openapi::api::core::v1::{
@@ -8,11 +8,11 @@ use k8s_openapi::api::core::v1::{
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference};
 
+use kube::ResourceExt;
 use kube::{
     api::{Patch, PatchParams, PostParams},
     Api, Client,
 };
-use kube::{Resource, ResourceExt};
 
 use rand::Rng;
 use serde_json::json;
@@ -255,7 +255,7 @@ pub async fn handle_pageserver_deletion(pod: &Pod, client: &Client) -> Result<()
 }
 
 async fn is_pageserver_drained(pod: &Pod) -> Result<bool> {
-    // TODO: Implement actual drain check via storage-controller API
+    // TODO: Implement actual drain check via storage-controller API (#21)
     // For now, we'll check if a specific annotation is set
     if let Some(annotations) = &pod.metadata.annotations {
         return Ok(annotations.get("neon.io/drained") == Some(&"true".to_string()));
@@ -264,7 +264,7 @@ async fn is_pageserver_drained(pod: &Pod) -> Result<bool> {
 }
 
 async fn trigger_pageserver_drain(pod: &Pod) -> Result<()> {
-    // TODO: Implement actual drain trigger via storage-controller API
+    // TODO: Implement actual drain trigger via storage-controller API (#21)
     // For now, we'll just log
     let pod_name = pod.metadata.name.as_ref().unwrap();
     let pageserver_id = pod

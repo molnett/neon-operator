@@ -270,7 +270,10 @@ async fn notify_attach(
     }
 
     if updated_count == 0 {
-        return HttpResponse::NotFound().json(format!("No compute pods found for tenant {}", tenant_id));
+        return HttpResponse::NotFound().json(format!(
+            "No compute pods matching tenant ID {} were found to update",
+            tenant_id
+        ));
     }
 
     HttpResponse::Ok().json(format!(

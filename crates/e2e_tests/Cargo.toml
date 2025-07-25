@@ -23,6 +23,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 uuid = { version = "1.0", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
 
 # Logging
 tracing = "0.1"
@@ -31,6 +32,12 @@ tracing-subscriber = "0.3"
 # Our operator
 neon_cluster = { path = "../neon_cluster" }
 base64 = "0.22.1"
+
+# HTTP client for connectivity tests
+reqwest = "0.12"
+
+# Futures utilities
+futures = "0.3"
 
 # TLS
 rustls = "0.23"

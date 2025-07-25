@@ -1,11 +1,22 @@
-use k8s_openapi::api::core::v1::Namespace;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use kube::{Api, Client, Config};
-use serde::Deserialize;
-use std::time::Duration;
-use tokio::process::Command;
-use tokio::time::sleep;
+// Modern E2E Test Framework for Neon Kubernetes Operator
+// Provides deterministic, fast, and observable testing with state machine orchestration
 
+use kube::Client;
+use std::time::Duration;
+use tracing::info;
+
+// Re-export all modules for easy access
+pub mod observability;
+pub mod parallel_setup;
+pub mod state_machine;
+pub mod waiting;
+
+pub use observability::{TestMetrics, TestObserver, TestSummary};
+pub use parallel_setup::{InfrastructureResult, ParallelSetupOrchestrator, ServiceResult};
+pub use state_machine::{TestState, TestStateMachine};
+pub use waiting::{with_progress_indicator, BackoffConfig, SmartWaiter};
+
+/// Modern test environment using state machine orchestration and parallel setup
 pub struct TestEnv {
     pub cluster_name: String,
     pub client: Client,
@@ -13,537 +24,271 @@ pub struct TestEnv {
     pub minio_endpoint: String,
     pub minio_access_key: String,
     pub minio_secret_key: String,
+    observer: TestObserver,
+    state_machine: TestStateMachine,
+    config: TestConfig,
 }
 
+impl std::fmt::Debug for TestEnv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TestEnv")
+            .field("cluster_name", &self.cluster_name)
+            .field("namespace", &self.namespace)
+            .field("minio_endpoint", &self.minio_endpoint)
+            .field("minio_access_key", &"[REDACTED]")
+            .field("minio_secret_key", &"[REDACTED]")
+            .finish()
+    }
+}
+
+/// Result type for test environment operations
+pub type TestResult<T> = Result<T, TestError>;
+
+/// Enhanced error type for better error reporting
+#[derive(Debug)]
+pub enum TestError {
+    Infrastructure(String),
+    Kubernetes(String),
+    Timeout(String),
+    Setup(String),
+    Cleanup(String),
+}
+
+impl std::fmt::Display for TestError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TestError::Infrastructure(msg) => write!(f, "Infrastructure error: {}", msg),
+            TestError::Kubernetes(msg) => write!(f, "Kubernetes error: {}", msg),
+            TestError::Timeout(msg) => write!(f, "Timeout error: {}", msg),
+            TestError::Setup(msg) => write!(f, "Setup error: {}", msg),
+            TestError::Cleanup(msg) => write!(f, "Cleanup error: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for TestError {}
+
 impl TestEnv {
-    pub async fn new(test_name: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        tracing::info!("Starting Kind cluster for test: {}", test_name);
+    /// Create a new test environment using modern parallel setup orchestration
+    pub async fn new(test_name: &str) -> TestResult<Self> {
+        Self::with_config(test_name, TestConfig::default()).await
+    }
 
-        // Generate unique cluster name
-        let cluster_name = format!(
-            "neon-e2e-{}-{}",
-            test_name,
-            uuid::Uuid::new_v4().to_string()[..8].to_lowercase()
+    /// Create a test environment with custom configuration
+    pub async fn with_config(test_name: &str, config: TestConfig) -> TestResult<Self> {
+        let mut observer = TestObserver::new(test_name);
+        let mut state_machine = TestStateMachine::new(test_name);
+
+        observer.start_phase("initialization");
+
+        info!(
+            test_name = test_name,
+            "🚀 Creating test environment with modern parallel setup"
         );
 
-        // Create Kind cluster
-        create_kind_cluster(&cluster_name).await?;
+        // Use the new parallel setup orchestrator with config-driven behavior
+        let orchestrator = ParallelSetupOrchestrator::new(test_name);
 
-        // Load operator image into Kind cluster
-        load_operator_image(&cluster_name).await?;
+        // Phase 1: Infrastructure setup (cluster + CRDs)
+        observer.start_phase("infrastructure_setup");
+        let infrastructure = if config.parallel_setup {
+            orchestrator
+                .setup_infrastructure(&mut state_machine)
+                .await
+                .map_err(|e| TestError::Infrastructure(e))?
+        } else {
+            // Sequential setup for debugging or slower environments
+            orchestrator
+                .setup_infrastructure_sequential(&mut state_machine)
+                .await
+                .map_err(|e| TestError::Infrastructure(e))?
+        };
+        observer.end_phase("infrastructure_setup");
+        observer.component_ready("infrastructure");
 
-        // Get kubeconfig from Kind
-        let kubeconfig_yaml = get_kind_kubeconfig(&cluster_name).await?;
+        // Phase 2: Service deployment (MinIO + Operator)
+        observer.start_phase("service_deployment");
+        let services = if config.parallel_setup {
+            orchestrator
+                .deploy_services(
+                    &infrastructure.client,
+                    &infrastructure.namespace,
+                    &mut state_machine,
+                )
+                .await
+                .map_err(|e| TestError::Setup(e))?
+        } else {
+            orchestrator
+                .deploy_services_sequential(
+                    &infrastructure.client,
+                    &infrastructure.namespace,
+                    &mut state_machine,
+                )
+                .await
+                .map_err(|e| TestError::Setup(e))?
+        };
+        observer.end_phase("service_deployment");
+        observer.component_ready("services");
 
-        // Create Kubernetes client
-        let config = Config::from_custom_kubeconfig(
-            kube::config::Kubeconfig::from_yaml(&kubeconfig_yaml)?,
-            &kube::config::KubeConfigOptions::default(),
-        )
-        .await?;
-        let client = Client::try_from(config)?;
+        // Observe cluster state if observability is enabled
+        if config.observability_enabled {
+            observer
+                .observe_kubernetes_state(&infrastructure.client, &infrastructure.namespace)
+                .await;
+        }
 
-        // Use the "neon" namespace for all tests to match service discovery expectations
-        let namespace = "neon".to_string();
-        create_namespace(&client, &namespace).await?;
+        observer.end_phase("initialization");
 
-        // Install CRDs
-        install_crds(&client).await?;
+        state_machine
+            .transition_to(TestState::ComponentsReady)
+            .map_err(|e| TestError::Setup(e))?;
 
-        // Deploy MinIO
-        let (minio_endpoint, minio_access_key, minio_secret_key) = deploy_minio(&client, &namespace).await?;
-
-        // Setup bucket for pageserver (using port-forward to access MinIO)
-        setup_minio_buckets(&cluster_name, &namespace, &minio_access_key, &minio_secret_key).await?;
-
-        // Deploy operator
-        deploy_operator(&client, &namespace).await?;
-
-        tracing::info!(
-            "Test environment ready: cluster={}, namespace={}, minio={}",
-            cluster_name,
-            namespace,
-            minio_endpoint
+        info!(
+            test_name = test_name,
+            cluster_name = infrastructure.cluster_name,
+            namespace = infrastructure.namespace,
+            "✅ Test environment ready with enhanced observability"
         );
 
-        Ok(TestEnv {
-            cluster_name,
-            client,
-            namespace,
-            minio_endpoint,
-            minio_access_key,
-            minio_secret_key,
-        })
+        let test_env = TestEnv {
+            cluster_name: infrastructure.cluster_name,
+            client: infrastructure.client,
+            namespace: infrastructure.namespace,
+            minio_endpoint: services.minio_endpoint,
+            minio_access_key: services.minio_access_key,
+            minio_secret_key: services.minio_secret_key,
+            observer,
+            state_machine,
+            config: config.clone(),
+        };
+
+        Ok(test_env)
+    }
+
+    /// Get the test observer for metrics and observability
+    pub fn observer(&self) -> &TestObserver {
+        &self.observer
+    }
+
+    /// Get the state machine for state tracking
+    pub fn state_machine(&self) -> &TestStateMachine {
+        &self.state_machine
+    }
+
+    /// Start observing a test phase
+    pub fn start_phase(&mut self, phase_name: &str) {
+        self.observer.start_phase(phase_name);
+    }
+
+    /// End observing a test phase
+    pub fn end_phase(&mut self, phase_name: &str) {
+        self.observer.end_phase(phase_name);
+    }
+
+    /// Mark a component as ready
+    pub fn component_ready(&mut self, component: &str) {
+        self.observer.component_ready(component);
+    }
+
+    /// Record a failure event
+    pub fn record_failure(&mut self, component: &str, error: &str) {
+        let mut context = std::collections::HashMap::new();
+        context.insert("cluster_name".to_string(), self.cluster_name.clone());
+        context.insert("namespace".to_string(), self.namespace.clone());
+        self.observer.record_failure(component, error, context);
+    }
+
+    /// Observe current Kubernetes state
+    pub async fn observe_state(&self) {
+        self.observer
+            .observe_kubernetes_state(&self.client, &self.namespace)
+            .await;
+    }
+
+    /// Clean up the test environment
+    pub async fn cleanup(&mut self) -> TestResult<TestSummary> {
+        self.start_phase("cleanup");
+
+        info!(
+            test_name = self.observer.get_metrics().test_name,
+            cluster_name = self.cluster_name,
+            "🧹 Starting test environment cleanup"
+        );
+
+        // Use the parallel setup orchestrator for cleanup
+        let orchestrator = ParallelSetupOrchestrator::new(&self.observer.get_metrics().test_name);
+        if let Err(e) = orchestrator.cleanup_infrastructure(&self.cluster_name).await {
+            if self.config.cleanup_on_failure {
+                self.record_failure("cleanup", &e);
+            }
+        }
+
+        self.end_phase("cleanup");
+
+        let summary = self.observer.finish();
+        Ok(summary)
+    }
+
+    /// Transition to a new test state
+    pub fn transition_to(&mut self, state: TestState) -> TestResult<()> {
+        self.state_machine
+            .transition_to(state)
+            .map_err(|e| TestError::Setup(e))
+    }
+
+    /// Get current test state
+    pub fn current_state(&self) -> &TestState {
+        self.state_machine.current_state()
+    }
+}
+
+/// Configuration for test environment creation
+#[derive(Debug, Clone)]
+pub struct TestConfig {
+    pub timeout: Duration,
+    pub parallel_setup: bool,
+    pub observability_enabled: bool,
+    pub cleanup_on_failure: bool,
+}
+
+impl Default for TestConfig {
+    fn default() -> Self {
+        Self {
+            timeout: Duration::from_secs(300), // 5 minutes default timeout
+            parallel_setup: true,
+            observability_enabled: true,
+            cleanup_on_failure: true,
+        }
     }
 }
 
 impl Drop for TestEnv {
     fn drop(&mut self) {
-        // Schedule cluster cleanup (fire and forget)
-        let cluster_name = self.cluster_name.clone();
-        tokio::spawn(async move {
-            if let Err(e) = cleanup_kind_cluster(&cluster_name).await {
-                tracing::warn!("Failed to cleanup Kind cluster {}: {}", cluster_name, e);
-            }
-        });
+        // Schedule cluster cleanup (fire and forget) only if configured to do so
+        if self.config.cleanup_on_failure {
+            let cluster_name = self.cluster_name.clone();
+            tokio::spawn(async move {
+                let orchestrator = ParallelSetupOrchestrator::new("auto-cleanup");
+                if let Err(e) = orchestrator.cleanup_infrastructure(&cluster_name).await {
+                    tracing::warn!("Failed to cleanup Kind cluster {}: {}", cluster_name, e);
+                }
+            });
+        }
     }
 }
 
 // Add a cleanup function that can be called from panic hooks or signal handlers
 pub async fn cleanup_all_test_clusters() -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("Cleaning up all e2e test clusters");
+    info!("Cleaning up all e2e test clusters");
 
-    let output = Command::new("kind").args(&["get", "clusters"]).output().await?;
-
-    if !output.status.success() {
-        return Err("Failed to list kind clusters".into());
-    }
-
-    let clusters = String::from_utf8(output.stdout)?;
-    for cluster in clusters.lines() {
-        if cluster.starts_with("neon-e2e-") {
-            tracing::info!("Cleaning up leftover cluster: {}", cluster);
-            if let Err(e) = cleanup_kind_cluster(cluster).await {
-                tracing::warn!("Failed to cleanup cluster {}: {}", cluster, e);
-            }
-        }
-    }
-
-    Ok(())
+    let orchestrator = ParallelSetupOrchestrator::new("global-cleanup");
+    orchestrator
+        .cleanup_all_test_clusters()
+        .await
+        .map_err(|e| e.into())
 }
 
-async fn create_namespace(client: &Client, namespace: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let ns = Namespace {
-        metadata: ObjectMeta {
-            name: Some(namespace.to_string()),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
-
-    let ns_api: Api<Namespace> = Api::all(client.clone());
-    match ns_api.create(&kube::api::PostParams::default(), &ns).await {
-        Ok(_) => tracing::info!("Successfully created namespace: {}", namespace),
-        Err(kube::Error::Api(kube::error::ErrorResponse { code: 409, .. })) => {
-            tracing::info!("Namespace {} already exists, continuing", namespace);
-        }
-        Err(e) => return Err(format!("Failed to create namespace: {}", e).into()),
-    }
-
-    Ok(())
-}
-
-async fn install_crds(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("Installing CRDs");
-
-    // Generate CRDs using crdgen
-    let output = std::process::Command::new("cargo")
-        .args(&["run", "-p", "crdgen"])
-        .output()?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "CRD generation failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    let crd_yaml = String::from_utf8(output.stdout)?;
-    apply_yaml_documents(client, &crd_yaml).await?;
-
-    // Wait for CRDs to be established
-    wait_for_crds_ready(client).await?;
-
-    Ok(())
-}
-
-async fn deploy_operator(client: &Client, namespace: &str) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("Deploying operator");
-
-    let operator_yaml = format!(
-        r#"apiVersion: v1
-kind: ServiceAccount
-metadata:
-    name: neon-operator
-    namespace: {}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-    name: neon-operator
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - pods/exec
-  verbs:
-  - create
-  - get
-- apiGroups:
-  - "events.k8s.io"
-  resources:
-  - events
-  verbs:
-  - create
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  - services
-  - services/finalizers
-  - endpoints
-  - persistentvolumeclaims
-  - events
-  - configmaps
-  - secrets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  - daemonsets
-  - replicasets
-  - statefulsets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - oltp.molnett.org
-  resources:
-  - neonclusters
-  - neonclusters/status
-  - neonclusters/finalizers
-  - neonprojects
-  - neonprojects/status
-  - neonprojects/finalizers
-  - neonbranches
-  - neonbranches/status
-  - neonbranches/finalizers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - coordination.k8s.io
-  resources:
-  - leases
-  verbs:
-  - create
-  - get
-  - list
-  - update
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-    name: neon-operator
-roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: ClusterRole
-    name: neon-operator
-subjects:
-  - kind: ServiceAccount
-    name: neon-operator
-    namespace: {}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-    name: neon-operator
-    namespace: {}
-    labels:
-        app: neon-operator
-spec:
-    replicas: 1
-    selector:
-        matchLabels:
-            app: neon-operator
-    template:
-        metadata:
-            labels:
-                app: neon-operator
-        spec:
-            serviceAccountName: neon-operator
-            securityContext:
-                runAsNonRoot: true
-                seccompProfile:
-                    type: RuntimeDefault
-            containers:
-            - name: operator
-              image: molnett/neon-operator:local
-              imagePullPolicy: Never
-              command:
-              - /app/operator
-              securityContext:
-                  allowPrivilegeEscalation: false
-                  capabilities:
-                      drop:
-                      - ALL
-              resources:
-                  limits:
-                      cpu: 500m
-                      memory: 512Mi
-                  requests:
-                      cpu: 100m
-                      memory: 128Mi
----
-apiVersion: v1
-kind: Service
-metadata:
-    name: neon-operator
-    namespace: {}
-spec:
-    selector:
-        app: neon-operator
-    ports:
-    - name: http
-      port: 8080
-      targetPort: 8080
-"#,
-        namespace, namespace, namespace, namespace
-    );
-
-    apply_yaml_documents(client, &operator_yaml).await?;
-
-    // Wait for operator to be ready
-    wait_for_deployment_ready(client, namespace, "neon-operator").await?;
-
-    Ok(())
-}
-
-async fn apply_yaml_documents(client: &Client, yaml: &str) -> Result<(), Box<dyn std::error::Error>> {
-    use k8s_openapi::api::apps::v1::Deployment;
-    use k8s_openapi::api::core::v1::{Service, ServiceAccount};
-    use k8s_openapi::api::rbac::v1::{ClusterRole, ClusterRoleBinding};
-    use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
-    use kube::api::{Api, PostParams};
-
-    for doc in serde_yaml::Deserializer::from_str(yaml) {
-        let value: serde_yaml::Value = serde_yaml::Value::deserialize(doc)?;
-
-        // Extract basic info from the YAML
-        let api_version = value
-            .get("apiVersion")
-            .and_then(|v| v.as_str())
-            .ok_or("Missing apiVersion")?;
-        let kind = value.get("kind").and_then(|v| v.as_str()).ok_or("Missing kind")?;
-
-        match (kind, api_version) {
-            ("CustomResourceDefinition", "apiextensions.k8s.io/v1") => {
-                let crd_api: Api<CustomResourceDefinition> = Api::all(client.clone());
-                let crd: CustomResourceDefinition = serde_yaml::from_value(value)?;
-                tracing::info!(
-                    "Applying CRD: {}",
-                    crd.metadata.name.as_ref().unwrap_or(&"<unknown>".to_string())
-                );
-
-                match crd_api.create(&PostParams::default(), &crd).await {
-                    Ok(_) => tracing::info!("Successfully created CRD"),
-                    Err(kube::Error::Api(kube::error::ErrorResponse { code: 409, .. })) => {
-                        tracing::info!("CRD already exists, continuing");
-                    }
-                    Err(e) => return Err(format!("Failed to create CRD: {}", e).into()),
-                }
-            }
-            ("ServiceAccount", "v1") => {
-                let sa: ServiceAccount = serde_yaml::from_value(value)?;
-                let namespace = sa
-                    .metadata
-                    .namespace
-                    .as_ref()
-                    .ok_or("Missing namespace in ServiceAccount")?;
-                let name = sa
-                    .metadata
-                    .name
-                    .as_ref()
-                    .ok_or("Missing name in ServiceAccount")?;
-
-                let sa_api: Api<ServiceAccount> = Api::namespaced(client.clone(), namespace);
-                tracing::info!("Applying ServiceAccount: {} in namespace {}", name, namespace);
-
-                match sa_api.create(&PostParams::default(), &sa).await {
-                    Ok(_) => tracing::info!("Successfully created ServiceAccount"),
-                    Err(kube::Error::Api(kube::error::ErrorResponse { code: 409, .. })) => {
-                        tracing::info!("ServiceAccount already exists, continuing");
-                    }
-                    Err(e) => return Err(format!("Failed to create ServiceAccount: {}", e).into()),
-                }
-            }
-            ("Service", "v1") => {
-                let service: Service = serde_yaml::from_value(value)?;
-                let namespace = service
-                    .metadata
-                    .namespace
-                    .as_ref()
-                    .ok_or("Missing namespace in Service")?;
-                let name = service.metadata.name.as_ref().ok_or("Missing name in Service")?;
-
-                let service_api: Api<Service> = Api::namespaced(client.clone(), namespace);
-                tracing::info!("Applying Service: {} in namespace {}", name, namespace);
-
-                match service_api.create(&PostParams::default(), &service).await {
-                    Ok(_) => tracing::info!("Successfully created Service"),
-                    Err(kube::Error::Api(kube::error::ErrorResponse { code: 409, .. })) => {
-                        tracing::info!("Service already exists, continuing");
-                    }
-                    Err(e) => return Err(format!("Failed to create Service: {}", e).into()),
-                }
-            }
-            ("ClusterRole", "rbac.authorization.k8s.io/v1") => {
-                let cr: ClusterRole = serde_yaml::from_value(value)?;
-                let name = cr.metadata.name.as_ref().ok_or("Missing name in ClusterRole")?;
-
-                let cr_api: Api<ClusterRole> = Api::all(client.clone());
-                tracing::info!("Applying ClusterRole: {}", name);
-
-                match cr_api.create(&PostParams::default(), &cr).await {
-                    Ok(_) => tracing::info!("Successfully created ClusterRole"),
-                    Err(kube::Error::Api(kube::error::ErrorResponse { code: 409, .. })) => {
-                        tracing::info!("ClusterRole already exists, continuing");
-                    }
-                    Err(e) => return Err(format!("Failed to create ClusterRole: {}", e).into()),
-                }
-            }
-            ("ClusterRoleBinding", "rbac.authorization.k8s.io/v1") => {
-                let crb: ClusterRoleBinding = serde_yaml::from_value(value)?;
-                let name = crb
-                    .metadata
-                    .name
-                    .as_ref()
-                    .ok_or("Missing name in ClusterRoleBinding")?;
-
-                let crb_api: Api<ClusterRoleBinding> = Api::all(client.clone());
-                tracing::info!("Applying ClusterRoleBinding: {}", name);
-
-                match crb_api.create(&PostParams::default(), &crb).await {
-                    Ok(_) => tracing::info!("Successfully created ClusterRoleBinding"),
-                    Err(kube::Error::Api(kube::error::ErrorResponse { code: 409, .. })) => {
-                        tracing::info!("ClusterRoleBinding already exists, continuing");
-                    }
-                    Err(e) => return Err(format!("Failed to create ClusterRoleBinding: {}", e).into()),
-                }
-            }
-            ("Deployment", "apps/v1") => {
-                let deployment: Deployment = serde_yaml::from_value(value)?;
-                let namespace = deployment
-                    .metadata
-                    .namespace
-                    .as_ref()
-                    .ok_or("Missing namespace in deployment")?;
-                let name = deployment
-                    .metadata
-                    .name
-                    .as_ref()
-                    .ok_or("Missing name in deployment")?;
-
-                let deploy_api: Api<Deployment> = Api::namespaced(client.clone(), namespace);
-                tracing::info!("Applying Deployment: {} in namespace {}", name, namespace);
-
-                match deploy_api.create(&PostParams::default(), &deployment).await {
-                    Ok(_) => tracing::info!("Successfully created Deployment"),
-                    Err(kube::Error::Api(kube::error::ErrorResponse { code: 409, .. })) => {
-                        tracing::info!("Deployment already exists, continuing");
-                    }
-                    Err(e) => return Err(format!("Failed to create Deployment: {}", e).into()),
-                }
-            }
-            _ => {
-                tracing::info!("Skipping unsupported resource: {} {}", kind, api_version);
-            }
-        }
-    }
-
-    Ok(())
-}
-
-async fn wait_for_deployment_ready(
-    client: &Client,
-    namespace: &str,
-    name: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    use k8s_openapi::api::apps::v1::Deployment;
-
-    let api: Api<Deployment> = Api::namespaced(client.clone(), namespace);
-
-    for _ in 0..60 {
-        // 2 minute timeout
-        match api.get(name).await {
-            Ok(deployment) => {
-                if let Some(status) = &deployment.status {
-                    if let (Some(ready_replicas), Some(replicas)) = (status.ready_replicas, status.replicas) {
-                        if ready_replicas == replicas && replicas > 0 {
-                            tracing::info!("Deployment {} is ready", name);
-                            return Ok(());
-                        }
-                    }
-                }
-            }
-            Err(e) => tracing::debug!("Deployment {} not ready yet: {}", name, e),
-        }
-        sleep(Duration::from_secs(2)).await;
-    }
-
-    Err(format!("Deployment {} did not become ready", name).into())
-}
-
-async fn wait_for_crds_ready(client: &Client) -> Result<(), Box<dyn std::error::Error>> {
-    use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
-
-    let crds: Api<CustomResourceDefinition> = Api::all(client.clone());
-    let expected_crds = [
-        "neonclusters.oltp.molnett.org",
-        "neonprojects.oltp.molnett.org",
-        "neonbranches.oltp.molnett.org",
-    ];
-
-    for crd_name in &expected_crds {
-        let mut found = false;
-        for _ in 0..30 {
-            // 1 minute timeout per CRD
-            match crds.get(crd_name).await {
-                Ok(crd) => {
-                    if let Some(status) = crd.status {
-                        if let Some(conditions) = status.conditions {
-                            for condition in conditions {
-                                if condition.type_ == "Established" && condition.status == "True" {
-                                    tracing::info!("CRD {} is established", crd_name);
-                                    found = true;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(e) => tracing::debug!("CRD {} not ready yet: {}", crd_name, e),
-            }
-            if found {
-                continue;
-            }
-            sleep(Duration::from_secs(2)).await;
-        }
-    }
-
-    Ok(())
-}
-
-// Helper function to wait for resource conditions
+// Helper function to wait for resource conditions (uses the new SmartWaiter)
 pub async fn wait_for_condition<T>(
     client: &Client,
     namespace: &str,
@@ -560,400 +305,18 @@ where
         + std::fmt::Debug,
     <T as kube::Resource>::DynamicType: Default,
 {
-    let api: Api<T> = Api::namespaced(client.clone(), namespace);
-    let start = std::time::Instant::now();
-
-    while start.elapsed() < timeout {
-        match api.get(name).await {
-            Ok(resource) => {
-                tracing::debug!("Resource {} exists, checking conditions", name);
-
-                // Check if this resource has status with conditions
-                let resource_value = serde_json::to_value(&resource)?;
-                if let Some(status) = resource_value.get("status") {
-                    if let Some(conditions) = status.get("conditions") {
-                        if let Some(conditions_array) = conditions.as_array() {
-                            for condition in conditions_array {
-                                if let (Some(cond_type), Some(cond_status)) = (
-                                    condition.get("type").and_then(|v| v.as_str()),
-                                    condition.get("status").and_then(|v| v.as_str()),
-                                ) {
-                                    if cond_type == condition_type && cond_status == condition_status {
-                                        tracing::info!(
-                                            "Resource {} reached condition {}={}",
-                                            name,
-                                            condition_type,
-                                            condition_status
-                                        );
-                                        return Ok(());
-                                    }
-                                }
-                            }
-                        }
-                        tracing::debug!("Resource {} has conditions but not the expected one", name);
-                    } else {
-                        tracing::debug!("Resource {} has status but no conditions field", name);
-                    }
-                } else {
-                    tracing::debug!("Resource {} exists but has no status yet", name);
-                }
-            }
-            Err(e) => tracing::debug!("Resource {} not found yet: {}", name, e),
-        }
-        sleep(Duration::from_secs(2)).await;
-    }
-
-    Err(format!(
-        "Resource {} did not reach condition {}={} within timeout",
-        name, condition_type, condition_status
-    )
-    .into())
-}
-
-async fn create_kind_cluster(cluster_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("Creating Kind cluster: {}", cluster_name);
-
-    let output = Command::new("kind")
-        .args(&["create", "cluster", "--name", cluster_name])
-        .output()
-        .await?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to create Kind cluster: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    // Wait for cluster to be ready
-    sleep(Duration::from_secs(30)).await;
-
-    Ok(())
-}
-
-async fn load_operator_image(cluster_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("Loading operator image into Kind cluster: {}", cluster_name);
-
-    let output = Command::new("kind")
-        .args(&[
-            "load",
-            "docker-image",
-            "molnett/neon-operator:local",
-            "--name",
-            cluster_name,
-        ])
-        .output()
-        .await?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to load operator image: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    Ok(())
-}
-
-async fn get_kind_kubeconfig(cluster_name: &str) -> Result<String, Box<dyn std::error::Error>> {
-    let output = Command::new("kind")
-        .args(&["get", "kubeconfig", "--name", cluster_name])
-        .output()
-        .await?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to get kubeconfig: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    Ok(String::from_utf8(output.stdout)?)
-}
-
-async fn deploy_minio(
-    client: &Client,
-    namespace: &str,
-) -> Result<(String, String, String), Box<dyn std::error::Error>> {
-    tracing::info!("Deploying MinIO");
-
-    let access_key = "minioadmin";
-    let secret_key = "minioadmin123";
-
-    let minio_yaml = format!(
-        r#"
-apiVersion: v1
-kind: Service
-metadata:
-  name: minio
-  namespace: {}
-spec:
-  ports:
-  - port: 9000
-    targetPort: 9000
-    name: api
-  - port: 9001
-    targetPort: 9001
-    name: console
-  selector:
-    app: minio
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: minio
-  namespace: {}
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: minio
-  template:
-    metadata:
-      labels:
-        app: minio
-    spec:
-      containers:
-      - name: minio
-        image: minio/minio:latest
-        args:
-        - server
-        - /data
-        - --console-address
-        - :9001
-        env:
-        - name: MINIO_ROOT_USER
-          value: "{}"
-        - name: MINIO_ROOT_PASSWORD
-          value: "{}"
-        ports:
-        - containerPort: 9000
-          name: api
-        - containerPort: 9001
-          name: console
-        volumeMounts:
-        - name: data
-          mountPath: /data
-      volumes:
-      - name: data
-        emptyDir: {{}}
-"#,
-        namespace, namespace, access_key, secret_key
+    let waiter = SmartWaiter::with_config(
+        &format!("wait_for_condition_{}_{}", name, condition_type),
+        BackoffConfig {
+            initial_delay: Duration::from_secs(2),
+            max_delay: Duration::from_secs(10),
+            multiplier: 1.5,
+            max_attempts: (timeout.as_secs() / 2) as u32,
+        },
     );
 
-    apply_yaml_documents(client, &minio_yaml).await?;
-
-    // Wait for MinIO to be ready
-    wait_for_deployment_ready(client, namespace, "minio").await?;
-
-    let endpoint = format!("minio.{}.svc.cluster.local:9000", namespace);
-
-    Ok((endpoint, access_key.to_string(), secret_key.to_string()))
-}
-
-async fn setup_minio_buckets(
-    cluster_name: &str,
-    namespace: &str,
-    access_key: &str,
-    secret_key: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("Setting up MinIO bucket for pageserver using port-forward");
-
-    // Find an available port
-    let local_port = find_available_port().await.unwrap_or(19000);
-
-    tracing::info!("Found available port: {}", local_port);
-    tracing::debug!("kubectl context: kind-{}", cluster_name);
-    tracing::debug!("namespace: {}", namespace);
-
-    // Start port-forward with the specific port
-    let context_arg = format!("kind-{}", cluster_name);
-    let port_arg = format!("{}:9000", local_port);
-    let kubectl_args = vec![
-        "--context",
-        &context_arg,
-        "-n",
-        namespace,
-        "port-forward",
-        "service/minio",
-        &port_arg,
-    ];
-    tracing::debug!("Starting kubectl with args: {:?}", kubectl_args);
-
-    let mut port_forward_child = Command::new("kubectl")
-        .args(&kubectl_args)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()?;
-
-    tracing::info!("Port-forward process started, waiting 8 seconds for establishment...");
-
-    // Wait for port-forward to establish
-    sleep(Duration::from_secs(8)).await;
-
-    // Check if port-forward is still running
-    match port_forward_child.try_wait() {
-        Ok(Some(status)) => {
-            tracing::error!("Port-forward process exited early with status: {}", status);
-            if let Some(stderr) = port_forward_child.stderr.take() {
-                use tokio::io::AsyncReadExt;
-                let mut buffer = Vec::new();
-                let mut stderr_reader = stderr;
-                if stderr_reader.read_to_end(&mut buffer).await.is_ok() {
-                    let stderr_output = String::from_utf8_lossy(&buffer);
-                    tracing::error!("Port-forward stderr: {}", stderr_output);
-                }
-            }
-        }
-        Ok(None) => {
-            tracing::info!("Port-forward process is still running");
-        }
-        Err(e) => {
-            tracing::warn!("Failed to check port-forward status: {}", e);
-        }
-    }
-
-    tracing::info!("Using local port {} for MinIO access", local_port);
-
-    // Create AWS config for MinIO
-    let endpoint_url = format!("http://localhost:{}", local_port);
-    tracing::debug!("MinIO endpoint URL: {}", endpoint_url);
-    tracing::debug!("MinIO access key: {}", access_key);
-    tracing::debug!(
-        "MinIO secret key: {}",
-        if secret_key.len() > 4 {
-            &secret_key[..4]
-        } else {
-            secret_key
-        }
-    );
-
-    let creds = aws_credential_types::Credentials::new(access_key, secret_key, None, None, "minio-setup");
-
-    let config = aws_config::SdkConfig::builder()
-        .endpoint_url(&endpoint_url)
-        .credentials_provider(aws_credential_types::provider::SharedCredentialsProvider::new(
-            creds,
-        ))
-        .region(aws_config::Region::new("us-east-1"))
-        .build();
-
-    let s3_config = aws_sdk_s3::config::Builder::from(&config)
-        .force_path_style(true)
-        .behavior_version_latest()
-        .build();
-    let s3_client = aws_sdk_s3::Client::from_conf(s3_config);
-
-    tracing::info!("Created S3 client, testing connectivity to MinIO...");
-
-    // Test basic connectivity with a simple HTTP check first
-    tracing::debug!(
-        "Testing basic HTTP connectivity to http://localhost:{}/minio/health/live",
-        local_port
-    );
-
-    // Test connectivity first
-    tracing::info!("Testing MinIO S3 API connectivity...");
-    match s3_client.list_buckets().send().await {
-        Ok(response) => {
-            tracing::info!("MinIO connection successful!");
-            let buckets = response.buckets();
-            tracing::debug!(
-                "Existing buckets: {:?}",
-                buckets
-                    .iter()
-                    .map(|b| b.name().unwrap_or("unknown"))
-                    .collect::<Vec<_>>()
-            );
-        }
-        Err(e) => {
-            tracing::error!("Failed to connect to MinIO via S3 API: {}", e);
-            tracing::error!("Error details: {:?}", e);
-            // Continue anyway - maybe the bucket creation will work
-        }
-    }
-
-    // Create bucket for pageserver
-    let bucket = "neon-pageserver";
-
-    tracing::info!("Attempting to create bucket: {}", bucket);
-    match s3_client.create_bucket().bucket(bucket).send().await {
-        Ok(_) => tracing::info!("Successfully created bucket: {}", bucket),
-        Err(e) => {
-            tracing::warn!("Bucket creation failed for {}: {}", bucket, e);
-            tracing::debug!("Bucket creation error details: {:?}", e);
-
-            // Check if bucket already exists
-            match s3_client.list_buckets().send().await {
-                Ok(response) => {
-                    let buckets = response.buckets();
-                    let bucket_names: Vec<_> =
-                        buckets.iter().map(|b| b.name().unwrap_or("unknown")).collect();
-                    if bucket_names.contains(&bucket) {
-                        tracing::info!("Bucket {} already exists, continuing", bucket);
-                    } else {
-                        tracing::error!(
-                            "Bucket {} does not exist and creation failed. Available buckets: {:?}",
-                            bucket,
-                            bucket_names
-                        );
-                    }
-                }
-                Err(list_err) => {
-                    tracing::error!(
-                        "Failed to list buckets to check if {} exists: {}",
-                        bucket,
-                        list_err
-                    );
-                }
-            }
-        }
-    }
-
-    // Clean up port-forward
-    tracing::info!("Cleaning up port-forward process");
-    if let Err(e) = port_forward_child.kill().await {
-        tracing::warn!("Failed to kill port-forward process: {}", e);
-    } else {
-        tracing::debug!("Port-forward process killed successfully");
-    }
-
-    Ok(())
-}
-
-async fn find_available_port() -> Result<u16, Box<dyn std::error::Error>> {
-    use std::net::TcpListener;
-
-    tracing::debug!("Finding available port by binding to 127.0.0.1:0");
-
-    // Try to bind to port 0 to get an available port
-    let listener = TcpListener::bind("127.0.0.1:0")?;
-    let port = listener.local_addr()?.port();
-    tracing::debug!("System assigned port: {}", port);
-    drop(listener); // Close the listener to free the port
-
-    tracing::debug!("Released port {}, returning it for use", port);
-    Ok(port)
-}
-
-async fn cleanup_kind_cluster(cluster_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::info!("Cleaning up Kind cluster: {}", cluster_name);
-
-    let output = Command::new("kind")
-        .args(&["delete", "cluster", "--name", cluster_name])
-        .output()
-        .await?;
-
-    if !output.status.success() {
-        tracing::warn!(
-            "Failed to delete Kind cluster {}: {}",
-            cluster_name,
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-
-    Ok(())
+    waiter
+        .wait_for_resource_condition::<T>(client, namespace, name, condition_type, condition_status)
+        .await
+        .map_err(|e| e.into())
 }

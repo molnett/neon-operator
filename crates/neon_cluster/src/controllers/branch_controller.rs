@@ -273,9 +273,7 @@ pub async fn reconcile(neon_branch: Arc<NeonBranch>, ctx: Arc<Context>) -> Resul
         },
     )
     .await
-    .map_err(|e| errors::Error::StdError(errors::StdError::FinalizerError(Box::new(e))))?;
-
-    Ok(Action::requeue(Duration::from_secs(5 * 60)))
+    .map_err(|e| errors::Error::StdError(errors::StdError::FinalizerError(Box::new(e))))
 }
 
 /// Diagnostics to be exposed by the web server

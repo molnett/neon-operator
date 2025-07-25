@@ -51,9 +51,9 @@ RUN RUST_TARGET=$(cat /tmp/rust-target) && \
 
 # Copy recipe and cook dependencies (cached layer)
 COPY --from=planner /app/recipe.json recipe.json
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/app/target \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry-$TARGETPLATFORM \
+    --mount=type=cache,target=/usr/local/cargo/git,id=cargo-git-$TARGETPLATFORM \
+    --mount=type=cache,target=/app/target,id=target-$TARGETPLATFORM \
     RUST_TARGET=$(cat /tmp/rust-target) && \
     cargo chef cook --release --target=$RUST_TARGET --zigbuild --recipe-path recipe.json
 
@@ -62,9 +62,9 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates/ ./crates/
 
 # Build the application (uses cached dependencies)
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    --mount=type=cache,target=/app/target \
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry-$TARGETPLATFORM \
+    --mount=type=cache,target=/usr/local/cargo/git,id=cargo-git-$TARGETPLATFORM \
+    --mount=type=cache,target=/app/target,id=target-$TARGETPLATFORM \
     RUST_TARGET=$(cat /tmp/rust-target) && \
     cargo zigbuild --release --target=$RUST_TARGET -p operator && \
     mkdir -p /tmp/bin && \

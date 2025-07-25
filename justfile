@@ -45,9 +45,9 @@ compile-x86 features="":
   just compile x86_64-unknown-linux-gnu {{features}}
 
 [private]
-_build features="" arch="aarch64-unknown-linux-gnu":
+_build features="" arch="aarch64-unknown-linux-gnu" image="Dockerfile.multi":
   just compile {{arch}} {{features}}
-  docker build --build-arg TARGETARCH={{arch}} -t molnett/neon-operator:local-{{arch}} -t molnett/neon-operator:local .
+  docker build -f {{image}} --build-arg TARGETARCH={{arch}} -t molnett/neon-operator:local-{{arch}} -t molnett/neon-operator:local .
 
 # docker build base (arm64)
 build-base: (_build "" "aarch64-unknown-linux-gnu")
@@ -84,11 +84,8 @@ detect-arch:
 build-e2e-image:
   #!/usr/bin/env bash
   target_arch=$(just detect-arch)
-  if [[ "$target_arch" == "x86_64-unknown-linux-gnu" ]]; then
-    just build-base-x86
-  else
-    just build-base
-  fi
+  just compile "$target_arch"
+  just _build "" "$target_arch" "dockerfile.e2e"
 
 # Run E2E tests (requires operator image)
 test-e2e: build-e2e-image

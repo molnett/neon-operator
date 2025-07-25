@@ -4,8 +4,8 @@ use tokio::time::Duration;
 
 #[derive(Error, Debug)]
 pub enum StdError {
-    #[error("SerializationError: {0}")]
-    SerializationError(#[source] serde_json::Error),
+    #[error("JsonSerializationError: {0}")]
+    JsonSerializationError(#[source] serde_json::Error),
 
     #[error("Kube Error: {0}")]
     KubeError(#[source] kube::Error),
@@ -16,10 +16,22 @@ pub enum StdError {
     FinalizerError(#[source] Box<kube::runtime::finalizer::Error<Error>>),
 
     #[error("MetadataMissing: {0}")]
-    MetadataMissing(&'static str),
+    MetadataMissing(String),
 
     #[error("InvalidArgument: {0}")]
-    InvalidArgument(&'static str),
+    InvalidArgument(String),
+
+    #[error("DecodingError: {0}")]
+    DecodingError(String),
+
+    #[error("CryptoError: {0}")]
+    CryptoError(String),
+
+    #[error("SerializationError: {0}")]
+    SerializationError(String),
+
+    #[error("HttpError: {0}")]
+    HttpError(String),
 }
 
 impl StdError {

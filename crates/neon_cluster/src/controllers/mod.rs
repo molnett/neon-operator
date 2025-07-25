@@ -7,3 +7,4 @@ pub mod project_controller;
 pub mod resources;
 pub mod safekeeper;
 pub mod storage_broker;
+pub mod storage_controller;

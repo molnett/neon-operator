@@ -37,13 +37,20 @@ spec:
               neon_image:
                 default: neondatabase/neon:6351-bookworm
                 type: string
+              num_pageservers:
+                default: 1
+                format: int32
+                type: integer
               num_safekeepers:
                 default: 3
                 format: uint8
                 minimum: 0.0
                 type: integer
+              storage_controller_database_url:
+                type: string
             required:
             - bucket_credentials_secret
+            - storage_controller_database_url
             type: object
           status:
             description: The status object of `NeonCluster`

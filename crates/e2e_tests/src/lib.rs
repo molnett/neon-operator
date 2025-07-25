@@ -51,8 +51,7 @@ impl TestEnv {
         install_crds(&client).await?;
 
         // Deploy MinIO
-        let (minio_endpoint, minio_access_key, minio_secret_key) = 
-            deploy_minio(&client, &namespace).await?;
+        let (minio_endpoint, minio_access_key, minio_secret_key) = deploy_minio(&client, &namespace).await?;
 
         // Setup bucket for pageserver (using port-forward to access MinIO)
         setup_minio_buckets(&cluster_name, &namespace, &minio_access_key, &minio_secret_key).await?;
@@ -93,16 +92,13 @@ impl Drop for TestEnv {
 // Add a cleanup function that can be called from panic hooks or signal handlers
 pub async fn cleanup_all_test_clusters() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Cleaning up all e2e test clusters");
-    
-    let output = Command::new("kind")
-        .args(&["get", "clusters"])
-        .output()
-        .await?;
-    
+
+    let output = Command::new("kind").args(&["get", "clusters"]).output().await?;
+
     if !output.status.success() {
         return Err("Failed to list kind clusters".into());
     }
-    
+
     let clusters = String::from_utf8(output.stdout)?;
     for cluster in clusters.lines() {
         if cluster.starts_with("neon-e2e-") {
@@ -112,7 +108,7 @@ pub async fn cleanup_all_test_clusters() -> Result<(), Box<dyn std::error::Error
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -166,84 +162,162 @@ async fn deploy_operator(client: &Client, namespace: &str) -> Result<(), Box<dyn
     tracing::info!("Deploying operator");
 
     let operator_yaml = format!(
-        r#"
-apiVersion: v1
+        r#"apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: neon-operator
-  namespace: {}
+    name: neon-operator
+    namespace: {}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: neon-operator
+    name: neon-operator
 rules:
-- apiGroups: [""]
-  resources: ["pods", "services", "secrets", "configmaps", "persistentvolumeclaims"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["apps"]
-  resources: ["deployments", "statefulsets"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["oltp.molnett.org"]
-  resources: ["neonclusters", "neonprojects", "neonbranches"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-- apiGroups: ["oltp.molnett.org"]
-  resources: ["neonclusters/status", "neonprojects/status", "neonbranches/status"]
-  verbs: ["get", "update", "patch"]
+- apiGroups:
+  - ""
+  resources:
+  - pods/exec
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - "events.k8s.io"
+  resources:
+  - events
+  verbs:
+  - create
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  - services
+  - services/finalizers
+  - endpoints
+  - persistentvolumeclaims
+  - events
+  - configmaps
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  - daemonsets
+  - replicasets
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - oltp.molnett.org
+  resources:
+  - neonclusters
+  - neonclusters/status
+  - neonclusters/finalizers
+  - neonprojects
+  - neonprojects/status
+  - neonprojects/finalizers
+  - neonbranches
+  - neonbranches/status
+  - neonbranches/finalizers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: neon-operator
+    name: neon-operator
 roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: neon-operator
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: neon-operator
 subjects:
-- kind: ServiceAccount
-  name: neon-operator
-  namespace: {}
+  - kind: ServiceAccount
+    name: neon-operator
+    namespace: {}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: neon-operator
-  namespace: {}
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: neon-operator
-  template:
-    metadata:
-      labels:
+    name: neon-operator
+    namespace: {}
+    labels:
         app: neon-operator
-    spec:
-      serviceAccountName: neon-operator
-      containers:
-      - name: operator
-        image: molnett/neon-operator:local
-        imagePullPolicy: Never
-        env:
-        - name: RUST_LOG
-          value: "info,controller=debug"
-        ports:
-        - containerPort: 8080
-          name: http
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            app: neon-operator
+    template:
+        metadata:
+            labels:
+                app: neon-operator
+        spec:
+            serviceAccountName: neon-operator
+            securityContext:
+                runAsNonRoot: true
+                seccompProfile:
+                    type: RuntimeDefault
+            containers:
+            - name: operator
+              image: molnett/neon-operator:local
+              imagePullPolicy: Never
+              command:
+              - /app/operator
+              securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                      drop:
+                      - ALL
+              resources:
+                  limits:
+                      cpu: 500m
+                      memory: 512Mi
+                  requests:
+                      cpu: 100m
+                      memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+    name: neon-operator
+    namespace: {}
+spec:
+    selector:
+        app: neon-operator
+    ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
 "#,
-        namespace, namespace, namespace
+        namespace, namespace, namespace, namespace
     );
 
     apply_yaml_documents(client, &operator_yaml).await?;
@@ -255,10 +329,10 @@ spec:
 }
 
 async fn apply_yaml_documents(client: &Client, yaml: &str) -> Result<(), Box<dyn std::error::Error>> {
-    use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
     use k8s_openapi::api::apps::v1::Deployment;
-    use k8s_openapi::api::core::v1::{ServiceAccount, Service};
+    use k8s_openapi::api::core::v1::{Service, ServiceAccount};
     use k8s_openapi::api::rbac::v1::{ClusterRole, ClusterRoleBinding};
+    use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
     use kube::api::{Api, PostParams};
 
     for doc in serde_yaml::Deserializer::from_str(yaml) {
@@ -290,9 +364,17 @@ async fn apply_yaml_documents(client: &Client, yaml: &str) -> Result<(), Box<dyn
             }
             ("ServiceAccount", "v1") => {
                 let sa: ServiceAccount = serde_yaml::from_value(value)?;
-                let namespace = sa.metadata.namespace.as_ref().ok_or("Missing namespace in ServiceAccount")?;
-                let name = sa.metadata.name.as_ref().ok_or("Missing name in ServiceAccount")?;
-                
+                let namespace = sa
+                    .metadata
+                    .namespace
+                    .as_ref()
+                    .ok_or("Missing namespace in ServiceAccount")?;
+                let name = sa
+                    .metadata
+                    .name
+                    .as_ref()
+                    .ok_or("Missing name in ServiceAccount")?;
+
                 let sa_api: Api<ServiceAccount> = Api::namespaced(client.clone(), namespace);
                 tracing::info!("Applying ServiceAccount: {} in namespace {}", name, namespace);
 
@@ -306,9 +388,13 @@ async fn apply_yaml_documents(client: &Client, yaml: &str) -> Result<(), Box<dyn
             }
             ("Service", "v1") => {
                 let service: Service = serde_yaml::from_value(value)?;
-                let namespace = service.metadata.namespace.as_ref().ok_or("Missing namespace in Service")?;
+                let namespace = service
+                    .metadata
+                    .namespace
+                    .as_ref()
+                    .ok_or("Missing namespace in Service")?;
                 let name = service.metadata.name.as_ref().ok_or("Missing name in Service")?;
-                
+
                 let service_api: Api<Service> = Api::namespaced(client.clone(), namespace);
                 tracing::info!("Applying Service: {} in namespace {}", name, namespace);
 
@@ -323,7 +409,7 @@ async fn apply_yaml_documents(client: &Client, yaml: &str) -> Result<(), Box<dyn
             ("ClusterRole", "rbac.authorization.k8s.io/v1") => {
                 let cr: ClusterRole = serde_yaml::from_value(value)?;
                 let name = cr.metadata.name.as_ref().ok_or("Missing name in ClusterRole")?;
-                
+
                 let cr_api: Api<ClusterRole> = Api::all(client.clone());
                 tracing::info!("Applying ClusterRole: {}", name);
 
@@ -337,8 +423,12 @@ async fn apply_yaml_documents(client: &Client, yaml: &str) -> Result<(), Box<dyn
             }
             ("ClusterRoleBinding", "rbac.authorization.k8s.io/v1") => {
                 let crb: ClusterRoleBinding = serde_yaml::from_value(value)?;
-                let name = crb.metadata.name.as_ref().ok_or("Missing name in ClusterRoleBinding")?;
-                
+                let name = crb
+                    .metadata
+                    .name
+                    .as_ref()
+                    .ok_or("Missing name in ClusterRoleBinding")?;
+
                 let crb_api: Api<ClusterRoleBinding> = Api::all(client.clone());
                 tracing::info!("Applying ClusterRoleBinding: {}", name);
 
@@ -352,9 +442,17 @@ async fn apply_yaml_documents(client: &Client, yaml: &str) -> Result<(), Box<dyn
             }
             ("Deployment", "apps/v1") => {
                 let deployment: Deployment = serde_yaml::from_value(value)?;
-                let namespace = deployment.metadata.namespace.as_ref().ok_or("Missing namespace in deployment")?;
-                let name = deployment.metadata.name.as_ref().ok_or("Missing name in deployment")?;
-                
+                let namespace = deployment
+                    .metadata
+                    .namespace
+                    .as_ref()
+                    .ok_or("Missing namespace in deployment")?;
+                let name = deployment
+                    .metadata
+                    .name
+                    .as_ref()
+                    .ok_or("Missing name in deployment")?;
+
                 let deploy_api: Api<Deployment> = Api::namespaced(client.clone(), namespace);
                 tracing::info!("Applying Deployment: {} in namespace {}", name, namespace);
 
@@ -469,7 +567,7 @@ where
         match api.get(name).await {
             Ok(resource) => {
                 tracing::debug!("Resource {} exists, checking conditions", name);
-                
+
                 // Check if this resource has status with conditions
                 let resource_value = serde_json::to_value(&resource)?;
                 if let Some(status) = resource_value.get("status") {
@@ -478,10 +576,15 @@ where
                             for condition in conditions_array {
                                 if let (Some(cond_type), Some(cond_status)) = (
                                     condition.get("type").and_then(|v| v.as_str()),
-                                    condition.get("status").and_then(|v| v.as_str())
+                                    condition.get("status").and_then(|v| v.as_str()),
                                 ) {
                                     if cond_type == condition_type && cond_status == condition_status {
-                                        tracing::info!("Resource {} reached condition {}={}", name, condition_type, condition_status);
+                                        tracing::info!(
+                                            "Resource {} reached condition {}={}",
+                                            name,
+                                            condition_type,
+                                            condition_status
+                                        );
                                         return Ok(());
                                     }
                                 }
@@ -571,7 +674,10 @@ async fn get_kind_kubeconfig(cluster_name: &str) -> Result<String, Box<dyn std::
     Ok(String::from_utf8(output.stdout)?)
 }
 
-async fn deploy_minio(client: &Client, namespace: &str) -> Result<(String, String, String), Box<dyn std::error::Error>> {
+async fn deploy_minio(
+    client: &Client,
+    namespace: &str,
+) -> Result<(String, String, String), Box<dyn std::error::Error>> {
     tracing::info!("Deploying MinIO");
 
     let access_key = "minioadmin";
@@ -644,32 +750,39 @@ spec:
     wait_for_deployment_ready(client, namespace, "minio").await?;
 
     let endpoint = format!("minio.{}.svc.cluster.local:9000", namespace);
-    
+
     Ok((endpoint, access_key.to_string(), secret_key.to_string()))
 }
 
-async fn setup_minio_buckets(cluster_name: &str, namespace: &str, access_key: &str, secret_key: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn setup_minio_buckets(
+    cluster_name: &str,
+    namespace: &str,
+    access_key: &str,
+    secret_key: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Setting up MinIO bucket for pageserver using port-forward");
 
     // Find an available port
     let local_port = find_available_port().await.unwrap_or(19000);
-    
+
     tracing::info!("Found available port: {}", local_port);
     tracing::debug!("kubectl context: kind-{}", cluster_name);
     tracing::debug!("namespace: {}", namespace);
-    
+
     // Start port-forward with the specific port
     let context_arg = format!("kind-{}", cluster_name);
     let port_arg = format!("{}:9000", local_port);
     let kubectl_args = vec![
-        "--context", &context_arg,
-        "-n", namespace,
+        "--context",
+        &context_arg,
+        "-n",
+        namespace,
         "port-forward",
         "service/minio",
-        &port_arg
+        &port_arg,
     ];
     tracing::debug!("Starting kubectl with args: {:?}", kubectl_args);
-    
+
     let mut port_forward_child = Command::new("kubectl")
         .args(&kubectl_args)
         .stdout(std::process::Stdio::piped())
@@ -677,7 +790,7 @@ async fn setup_minio_buckets(cluster_name: &str, namespace: &str, access_key: &s
         .spawn()?;
 
     tracing::info!("Port-forward process started, waiting 8 seconds for establishment...");
-    
+
     // Wait for port-forward to establish
     sleep(Duration::from_secs(8)).await;
 
@@ -686,7 +799,7 @@ async fn setup_minio_buckets(cluster_name: &str, namespace: &str, access_key: &s
         Ok(Some(status)) => {
             tracing::error!("Port-forward process exited early with status: {}", status);
             if let Some(stderr) = port_forward_child.stderr.take() {
-                use tokio::io::{AsyncReadExt};
+                use tokio::io::AsyncReadExt;
                 let mut buffer = Vec::new();
                 let mut stderr_reader = stderr;
                 if stderr_reader.read_to_end(&mut buffer).await.is_ok() {
@@ -709,19 +822,22 @@ async fn setup_minio_buckets(cluster_name: &str, namespace: &str, access_key: &s
     let endpoint_url = format!("http://localhost:{}", local_port);
     tracing::debug!("MinIO endpoint URL: {}", endpoint_url);
     tracing::debug!("MinIO access key: {}", access_key);
-    tracing::debug!("MinIO secret key: {}", if secret_key.len() > 4 { &secret_key[..4] } else { secret_key });
-    
-    let creds = aws_credential_types::Credentials::new(
-        access_key,
-        secret_key,
-        None,
-        None,
-        "minio-setup"
+    tracing::debug!(
+        "MinIO secret key: {}",
+        if secret_key.len() > 4 {
+            &secret_key[..4]
+        } else {
+            secret_key
+        }
     );
+
+    let creds = aws_credential_types::Credentials::new(access_key, secret_key, None, None, "minio-setup");
 
     let config = aws_config::SdkConfig::builder()
         .endpoint_url(&endpoint_url)
-        .credentials_provider(aws_credential_types::provider::SharedCredentialsProvider::new(creds))
+        .credentials_provider(aws_credential_types::provider::SharedCredentialsProvider::new(
+            creds,
+        ))
         .region(aws_config::Region::new("us-east-1"))
         .build();
 
@@ -732,17 +848,26 @@ async fn setup_minio_buckets(cluster_name: &str, namespace: &str, access_key: &s
     let s3_client = aws_sdk_s3::Client::from_conf(s3_config);
 
     tracing::info!("Created S3 client, testing connectivity to MinIO...");
-    
+
     // Test basic connectivity with a simple HTTP check first
-    tracing::debug!("Testing basic HTTP connectivity to http://localhost:{}/minio/health/live", local_port);
-    
+    tracing::debug!(
+        "Testing basic HTTP connectivity to http://localhost:{}/minio/health/live",
+        local_port
+    );
+
     // Test connectivity first
     tracing::info!("Testing MinIO S3 API connectivity...");
     match s3_client.list_buckets().send().await {
         Ok(response) => {
             tracing::info!("MinIO connection successful!");
             let buckets = response.buckets();
-            tracing::debug!("Existing buckets: {:?}", buckets.iter().map(|b| b.name().unwrap_or("unknown")).collect::<Vec<_>>());
+            tracing::debug!(
+                "Existing buckets: {:?}",
+                buckets
+                    .iter()
+                    .map(|b| b.name().unwrap_or("unknown"))
+                    .collect::<Vec<_>>()
+            );
         }
         Err(e) => {
             tracing::error!("Failed to connect to MinIO via S3 API: {}", e);
@@ -753,31 +878,36 @@ async fn setup_minio_buckets(cluster_name: &str, namespace: &str, access_key: &s
 
     // Create bucket for pageserver
     let bucket = "neon-pageserver";
-    
+
     tracing::info!("Attempting to create bucket: {}", bucket);
-    match s3_client.create_bucket()
-        .bucket(bucket)
-        .send()
-        .await
-    {
+    match s3_client.create_bucket().bucket(bucket).send().await {
         Ok(_) => tracing::info!("Successfully created bucket: {}", bucket),
         Err(e) => {
             tracing::warn!("Bucket creation failed for {}: {}", bucket, e);
             tracing::debug!("Bucket creation error details: {:?}", e);
-            
+
             // Check if bucket already exists
             match s3_client.list_buckets().send().await {
                 Ok(response) => {
                     let buckets = response.buckets();
-                    let bucket_names: Vec<_> = buckets.iter().map(|b| b.name().unwrap_or("unknown")).collect();
+                    let bucket_names: Vec<_> =
+                        buckets.iter().map(|b| b.name().unwrap_or("unknown")).collect();
                     if bucket_names.contains(&bucket) {
                         tracing::info!("Bucket {} already exists, continuing", bucket);
                     } else {
-                        tracing::error!("Bucket {} does not exist and creation failed. Available buckets: {:?}", bucket, bucket_names);
+                        tracing::error!(
+                            "Bucket {} does not exist and creation failed. Available buckets: {:?}",
+                            bucket,
+                            bucket_names
+                        );
                     }
                 }
                 Err(list_err) => {
-                    tracing::error!("Failed to list buckets to check if {} exists: {}", bucket, list_err);
+                    tracing::error!(
+                        "Failed to list buckets to check if {} exists: {}",
+                        bucket,
+                        list_err
+                    );
                 }
             }
         }
@@ -796,15 +926,15 @@ async fn setup_minio_buckets(cluster_name: &str, namespace: &str, access_key: &s
 
 async fn find_available_port() -> Result<u16, Box<dyn std::error::Error>> {
     use std::net::TcpListener;
-    
+
     tracing::debug!("Finding available port by binding to 127.0.0.1:0");
-    
+
     // Try to bind to port 0 to get an available port
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let port = listener.local_addr()?.port();
     tracing::debug!("System assigned port: {}", port);
     drop(listener); // Close the listener to free the port
-    
+
     tracing::debug!("Released port {}, returning it for use", port);
     Ok(port)
 }

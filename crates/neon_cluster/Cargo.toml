@@ -17,14 +17,17 @@ anyhow = "1.0.75"
 chrono = { version = "0.4.26", features = ["serde"] }
 futures = "0.3.28"
 hex = "0.4.3"
-k8s-openapi = { version = "0.20.0", features = ["latest"] }
+k8s-openapi = { version = "0.25.0", features = ["latest"] }
 opentelemetry = { version = "0.20.0", features = ["trace", "rt-tokio"] }
 opentelemetry-otlp = { version = "0.13.0", features = [
     "tokio",
 ], optional = true }
 prometheus = "0.13.3"
 rand = "0.8.5"
-reqwest = "0.12.8"
+reqwest = { version = "0.12.8", features = ["json"] }
+ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
+base64 = "0.22.1"
+sha2 = "0.10.8"
 schemars = { version = "0.8.12", features = ["chrono"] }
 serde = { version = "1.0.185", features = ["derive"] }
 serde_json = "1.0.105"
@@ -45,4 +48,4 @@ tower-test = "0.4.0"
 
 [dependencies.kube]
 features = ["runtime", "client", "derive"]
-version = "0.87.1"
+version = "1.1.0"

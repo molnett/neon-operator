@@ -4,4 +4,12 @@ metadata:
   name: basic-cluster
   namespace: neon
 spec:
+  num_pageservers: 3
   bucket_credentials_secret: tigris-bucket
+  storage_controller_database_url: "postgresql://user:pass@storage-controller/db"
+  # Storage configuration for pageserver
+  pageserver_storage:
+    size: 20Gi # Optional: storage size (default: 10Gi)
+  # Storage configuration for safekeeper
+  safekeeper_storage:
+    size: 5Gi # Optional: storage size (default: 10Gi)

@@ -1,6 +1,5 @@
 use super::branch::{
-    create_default_database, ensure_config_map, ensure_deployment, get_or_create_default_user,
-    is_compute_node_ready,
+    create_default_database, ensure_deployment, get_or_create_default_user, is_compute_node_ready,
 };
 use super::resources::*;
 use crate::util::branch_status::{
@@ -11,7 +10,9 @@ use crate::util::status::{is_status_condition_false, is_status_condition_true};
 use crate::util::{errors, errors::Result, metrics, telemetry};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
+use k8s_openapi::api::core::v1::ObjectReference;
 use k8s_openapi::api::{apps::v1::Deployment, core::v1::Service};
+
 use kube::{
     api::{Api, ListParams, Patch, PatchParams, ResourceExt},
     client::Client,
@@ -42,7 +43,7 @@ impl NeonBranch {
         let name = self.name_any();
 
         let branch_client: Api<NeonBranch> = Api::namespaced(client.clone(), &namespace);
-        let project_client: Api<NeonProject> = Api::namespaced(client.clone(), &namespace);
+        let project_client: Api<NeonProject> = Api::namespaced(client.clone(), "neon");
         let project = match project_client
             .get_opt(&self.spec.project_id)
             .await
@@ -71,8 +72,6 @@ impl NeonBranch {
             }
         };
 
-        tracing::info!("Project: {:?}", project);
-
         if self.spec.timeline_id.is_none() {
             // Set field and set field manager for this field
             // timeline_id is a 32 character alphanumeric string
@@ -95,17 +94,16 @@ impl NeonBranch {
                 .await
                 .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 
-            tracing::info!("Timeline ID: {:?}", timeline_id);
-
             return Ok(Action::requeue(Duration::from_secs(1)));
         }
 
-        // send http request to pageserver to ensure timeline is created
+        // send http request to storage-controller to ensure timeline is created
         let pageserver_url = format!(
-            "http://pageserver-{}.neon.svc.cluster.local:9898/v1/tenant/{}/timeline",
+            "http://storage-controller-{}:8080/v1/tenant/{}/timeline",
             project.spec.cluster_name,
             project.spec.tenant_id.clone().unwrap()
         );
+        tracing::info!("Sending request to pageserver: {}", pageserver_url);
         let http_client = reqwest::Client::new();
 
         match http_client
@@ -128,7 +126,7 @@ impl NeonBranch {
             }
             Err(e) => {
                 tracing::warn!(
-                    "Failed to connect to pageserver at {}: {}. Will retry later.",
+                    "Failed to connect to pageserver at {}: {}. Will retry in 10 seconds.",
                     pageserver_url,
                     e
                 );
@@ -136,11 +134,8 @@ impl NeonBranch {
             }
         }
 
-        // Ensure ConfigMap exists
-        ensure_config_map(&client, &namespace, &name, self, &project).await?;
-
         // Ensure Deployment exists
-        ensure_deployment(&client, &namespace, &name, self).await?;
+        ensure_deployment(&client, &namespace, &name, self, &project).await?;
 
         // Check if Compute node is ready
         let compute_node_ready = is_compute_node_ready(&client, &namespace, &name).await?;
@@ -185,17 +180,20 @@ impl NeonBranch {
     }
 
     // Finalizer cleanup (the object was deleted, ensure nothing is orphaned)
-    async fn cleanup(&self, ctx: Arc<Context>) -> Result<Action> {
-        let recorder = ctx.diagnostics.read().await.recorder(ctx.client.clone(), self);
+    async fn cleanup(&self, ctx: Arc<Context>, oref: &ObjectReference) -> Result<Action> {
+        let recorder = ctx.diagnostics.read().await.recorder(ctx.client.clone());
         // Branch doesn't have any real cleanup, so we just publish an event
         recorder
-            .publish(Event {
-                type_: EventType::Normal,
-                reason: "DeleteRequested".into(),
-                note: Some(format!("Delete `{}`", self.name_any())),
-                action: "Deleting".into(),
-                secondary: None,
-            })
+            .publish(
+                &Event {
+                    type_: EventType::Normal,
+                    reason: "DeleteRequested".into(),
+                    note: Some(format!("Delete `{}`", self.name_any())),
+                    action: "Deleting".into(),
+                    secondary: None,
+                },
+                oref,
+            )
             .await
             .map_err(|e| errors::Error::StdError(errors::StdError::KubeError(e)))?;
         Ok(Action::await_change())
@@ -266,7 +264,11 @@ pub async fn reconcile(neon_branch: Arc<NeonBranch>, ctx: Arc<Context>) -> Resul
         |event| async {
             match event {
                 Finalizer::Apply(neon_branch) => neon_branch.reconcile(ctx.clone()).await,
-                Finalizer::Cleanup(neon_branch) => neon_branch.cleanup(ctx.clone()).await,
+                Finalizer::Cleanup(neon_branch) => {
+                    neon_branch
+                        .cleanup(ctx.clone(), &neon_branch.object_ref(&()))
+                        .await
+                }
             }
         },
     )
@@ -293,8 +295,8 @@ impl Default for Diagnostics {
     }
 }
 impl Diagnostics {
-    fn recorder(&self, client: Client, neon_branch: &NeonBranch) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), neon_branch.object_ref(&()))
+    fn recorder(&self, client: Client) -> Recorder {
+        Recorder::new(client, self.reporter.clone())
     }
 }
 
@@ -318,7 +320,6 @@ pub async fn run(state: State) {
     Controller::new(branch_client, Config::default().any_semantic())
         .owns(Api::<Service>::all(client.clone()), watcher::Config::default())
         .owns(Api::<Deployment>::all(client.clone()), watcher::Config::default())
-        .shutdown_on_signal()
         .run(reconcile, error_policy, state.to_context(client))
         .filter_map(|x| async move { std::result::Result::ok(x) })
         .for_each(|_| futures::future::ready(()))

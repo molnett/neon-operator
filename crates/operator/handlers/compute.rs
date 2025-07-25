@@ -15,7 +15,7 @@ pub async fn compute_spec(compute_id: actix_web::web::Path<String>) -> impl Resp
     };
 
     let compute_service = ComputeService::new(client);
-    
+
     match compute_service.generate_spec(compute_id.as_str()).await {
         Ok(spec) => HttpResponse::Ok().json(spec),
         Err(e) => {

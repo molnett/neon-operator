@@ -84,7 +84,9 @@ impl HookService {
                         // Send SIGHUP to the compute pod
                         send_sighup_to_compute(&pods, deployment_name, &pageserver_connstring)
                             .await
-                            .map_err(|e| format!("Failed to send SIGHUP to deployment {}: {}", deployment_name, e))?;
+                            .map_err(|e| {
+                                format!("Failed to send SIGHUP to deployment {}: {}", deployment_name, e)
+                            })?;
 
                         info!("Successfully sent SIGHUP to deployment {}", deployment_name);
                         updated_count += 1;
@@ -157,11 +159,7 @@ impl HookService {
                         namespace: Some(namespace.to_string()),
                         ..Default::default()
                     },
-                    data: Some(
-                        [("spec.json".to_string(), updated_json)]
-                            .into_iter()
-                            .collect(),
-                    ),
+                    data: Some([("spec.json".to_string(), updated_json)].into_iter().collect()),
                     ..Default::default()
                 };
 
@@ -175,7 +173,10 @@ impl HookService {
                     .await
                     .map_err(|e| format!("Failed to update ConfigMap {}: {}", configmap_name, e))?;
 
-                info!("Successfully updated ConfigMap {} with new pageserver connection string", configmap_name);
+                info!(
+                    "Successfully updated ConfigMap {} with new pageserver connection string",
+                    configmap_name
+                );
 
                 // Update pod annotation to trigger ConfigMap resync
                 self.update_pod_annotation(pods, deployment_name).await?;

@@ -4,9 +4,7 @@ use anyhow::Result;
 use crate::handlers::{compute, health, hooks, metrics};
 
 /// Configure and start the HTTP server
-pub async fn start_server(
-    cluster_state: neon_cluster::controllers::cluster_controller::State,
-) -> Result<()> {
+pub async fn start_server(cluster_state: neon_cluster::controllers::cluster_controller::State) -> Result<()> {
     let server = HttpServer::new(move || {
         App::new()
             .app_data(Data::new(cluster_state.clone()))

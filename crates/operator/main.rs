@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
     let state = controllers::cluster_controller::State::default();
     let project_state = controllers::project_controller::State::default();
     let branch_state = controllers::branch_controller::State::default();
-    
+
     // Start controllers
     let neon_cluster_controller = controllers::cluster_controller::run(state.clone());
     let neon_project_controller = controllers::project_controller::run(project_state.clone());

@@ -25,14 +25,16 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6
+        uses: Swatinem/rust-cache@v2
         with:
           # Cache on workspace and target directory
           workspaces: "."
           # Include zigbuild target cache
           cache-targets: true
-          # Key on Cargo.lock and relevant files
-          key: ${{ runner.os }}-rust-e2e-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          # Share cache across all workflows
+          prefix-key: v1-neon-operator
+          # Only save on successful builds on main branch
+          save-if: ${{ github.ref == 'refs/heads/main' && job.status == 'success' }}
 
       - name: Install just
         uses: extractions/setup-just@v2

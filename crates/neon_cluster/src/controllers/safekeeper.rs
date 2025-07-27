@@ -3,8 +3,8 @@ use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EnvVar, EnvVarSource, ObjectFieldSelector, PersistentVolumeClaim,
-    PersistentVolumeClaimSpec, PodSpec, PodTemplateSpec, Service, ServicePort, ServiceSpec, VolumeMount,
-    VolumeResourceRequirements,
+    PersistentVolumeClaimSpec, PodSecurityContext, PodSpec, PodTemplateSpec, Service, ServicePort,
+    ServiceSpec, VolumeMount, VolumeResourceRequirements,
 };
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta, OwnerReference};
 
@@ -226,6 +226,12 @@ fn create_desired_statefulset(
                     ..Default::default()
                 }),
                 spec: Some(PodSpec {
+                    security_context: Some(PodSecurityContext {
+                        run_as_user: Some(1000),
+                        run_as_group: Some(1000),
+                        fs_group: Some(1000),
+                        ..Default::default()
+                    }),
                     containers: vec![Container {
                         name: "safekeeper".to_string(),
                         image: Some("neondatabase/neon:7894".to_string()),

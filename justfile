@@ -45,14 +45,14 @@ compile-x86 features="":
   just compile x86_64-unknown-linux-gnu {{features}}
 
 [private]
-_build features="" arch="aarch64-unknown-linux-gnu":
+_build features="" arch="aarch64-unknown-linux-gnu" platform="linux/amd64" image="Dockerfile.multi":
   just compile {{arch}} {{features}}
-  docker build --build-arg TARGETARCH={{arch}} -t molnett/neon-operator:local-{{arch}} -t molnett/neon-operator:local .
+  docker build -f {{image}} --build-arg TARGETARCH={{arch}} --build-arg TARGETPLATFORM={{platform}} --platform {{platform}} -t molnett/neon-operator:local-{{arch}} -t molnett/neon-operator:local .
 
 # docker build base (arm64)
-build-base: (_build "" "aarch64-unknown-linux-gnu")
+build-base: (_build "" "aarch64-unknown-linux-gnu" "linux/arm64")
 # docker build base (x86_64)
-build-base-x86: (_build "" "x86_64-unknown-linux-gnu")
+build-base-x86: (_build "" "x86_64-unknown-linux-gnu" "linux/amd64")
 # docker build with telemetry (arm64)
 build-otel: (_build "telemetry" "aarch64-unknown-linux-gnu")
 # docker build with telemetry (x86_64)
@@ -80,15 +80,29 @@ detect-arch:
       ;;
   esac
 
+[private]
+detect-platform:
+  #!/usr/bin/env bash
+  arch=$(uname -m)
+  case $arch in
+    x86_64)
+      echo "linux/amd64"
+      ;;
+    arm64|aarch64)
+      echo "linux/arm64"
+      ;;
+    *)
+      echo "linux/arm64"  # default fallback
+      ;;
+  esac
+
 # Build operator image for E2E testing (auto-detects architecture)
 build-e2e-image:
   #!/usr/bin/env bash
   target_arch=$(just detect-arch)
-  if [[ "$target_arch" == "x86_64-unknown-linux-gnu" ]]; then
-    just build-base-x86
-  else
-    just build-base
-  fi
+  target_platform=$(just detect-platform)
+  just compile "$target_arch"
+  just _build "" "$target_arch" "$target_platform" "Dockerfile.e2e"
 
 # Run E2E tests (requires operator image)
 test-e2e: build-e2e-image

@@ -1,4 +1,22 @@
-# Multi-stage Dockerfile for cross-platform builds
+# syntax=docker/dockerfile:1.3
+# Multi-stage Dockerfile for cross-platform builds with optimized caching
+
+# Stage 1: Chef - Install cargo-chef for dependency caching
+FROM --platform=$BUILDPLATFORM rust:1.87-slim AS chef
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+RUN cargo install --locked cargo-chef
+WORKDIR /app
+
+# Stage 2: Planner - Generate recipe.json for dependencies
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+RUN cargo chef prepare --recipe-path recipe.json
+
+# Stage 3: Builder - Build dependencies and application
 FROM --platform=$BUILDPLATFORM rust:1.87-slim AS builder
 
 # Install build dependencies
@@ -9,14 +27,12 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install zigbuild for cross-compilation
-RUN pip3 install --break-system-packages ziglang && cargo install cargo-zigbuild
+# Install cargo-chef and zigbuild for cross-compilation
+RUN cargo install --locked cargo-chef && \
+    pip3 install --break-system-packages ziglang && \
+    cargo install cargo-zigbuild
 
-WORKDIR /usr/src/app
-
-# Copy manifests
-COPY Cargo.toml Cargo.lock ./
-COPY crates/ ./crates/
+WORKDIR /app
 
 # Build arguments for target architecture
 ARG TARGETPLATFORM
@@ -29,14 +45,32 @@ RUN case "$TARGETPLATFORM" in \
     *) echo "aarch64-unknown-linux-gnu" > /tmp/rust-target ;; \
     esac
 
-# Install the target and build the binary
+# Install the target
 RUN RUST_TARGET=$(cat /tmp/rust-target) && \
-    rustup target add $RUST_TARGET && \
+    rustup target add $RUST_TARGET
+
+# Copy recipe and cook dependencies (cached layer)
+COPY --from=planner /app/recipe.json recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry-$TARGETPLATFORM \
+    --mount=type=cache,target=/usr/local/cargo/git,id=cargo-git-$TARGETPLATFORM \
+    --mount=type=cache,target=/app/target,id=target-$TARGETPLATFORM \
+    RUST_TARGET=$(cat /tmp/rust-target) && \
+    cargo chef cook --release --target=$RUST_TARGET --zigbuild --recipe-path recipe.json
+
+# Copy source code (only invalidates if source changes)
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+
+# Build the application (uses cached dependencies)
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry-$TARGETPLATFORM \
+    --mount=type=cache,target=/usr/local/cargo/git,id=cargo-git-$TARGETPLATFORM \
+    --mount=type=cache,target=/app/target,id=target-$TARGETPLATFORM \
+    RUST_TARGET=$(cat /tmp/rust-target) && \
     cargo zigbuild --release --target=$RUST_TARGET -p operator && \
     mkdir -p /tmp/bin && \
     cp target/$RUST_TARGET/release/operator /tmp/bin/
 
-# Runtime stage
+# Stage 4: Runtime - Minimal runtime image
 FROM gcr.io/distroless/cc-debian12:nonroot
 
 COPY --from=builder --chown=nonroot:nonroot /tmp/bin/operator /app/operator

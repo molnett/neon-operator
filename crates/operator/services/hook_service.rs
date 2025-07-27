@@ -112,12 +112,7 @@ impl HookService {
     fn build_pageserver_connstring(&self, shards: &[ComputeHookNotifyRequestShard]) -> String {
         let pageserver_hosts: Vec<String> = shards
             .iter()
-            .map(|shard| {
-                format!(
-                    "host=pageserver-{}.neon.svc.cluster.local port=6400",
-                    shard.node_id
-                )
-            })
+            .map(|shard| format!("host=pageserver-{}.neon port=6400", shard.node_id))
             .collect();
         pageserver_hosts.join(",")
     }

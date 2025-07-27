@@ -3,7 +3,8 @@ use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 
 use k8s_openapi::api::core::v1::{
     ConfigMapVolumeSource, Container, ContainerPort, EnvVar, EnvVarSource, PersistentVolumeClaim,
-    PersistentVolumeClaimSpec, Pod, PodSpec, SecretKeySelector, Volume, VolumeMount,
+    PersistentVolumeClaimSpec, Pod, PodSecurityContext, PodSpec, SecretKeySelector, SecurityContext, Volume,
+    VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference};
@@ -320,7 +321,7 @@ fn create_pageserver_pod_spec(
                     echo "id={0}" > /config/identity.toml
 
                     # Create metadata.json with proper host information using specific pod through headless service
-                    echo "{{\"host\":\"{1}.pageserver-{2}-headless.{3}.svc.cluster.local\",\"http_host\":\"{1}.pageserver-{2}-headless.{3}.svc.cluster.local\",\"http_port\":9898,\"port\":6400,\"availability_zone_id\":\"se-ume\"}}" > /config/metadata.json
+                    echo "{{\"host\":\"{1}.pageserver-{2}-headless.{3}\",\"http_host\":\"{1}.pageserver-{2}-headless.{3}\",\"http_port\":9898,\"port\":6400,\"availability_zone_id\":\"se-ume\"}}" > /config/metadata.json
 
                     # Copy pageserver.toml from configmap
                     cp /configmap/pageserver.toml /config/pageserver.toml
@@ -442,6 +443,12 @@ fn create_pageserver_pod_spec(
                 ]),
                 ..Default::default()
             }],
+            security_context: Some(PodSecurityContext {
+                run_as_user: Some(1000),
+                run_as_group: Some(1000),
+                fs_group: Some(1000),
+                ..Default::default()
+            }),
             volumes: Some(vec![
                 Volume {
                     name: "pageserver-storage".to_string(),

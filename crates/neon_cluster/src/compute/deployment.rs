@@ -1,7 +1,7 @@
 use crate::controllers::resources::{NeonBranch, NeonProject};
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{
-    Container, ContainerPort, EnvVar, PodSpec, PodTemplateSpec, Volume, VolumeMount,
+    Container, ContainerPort, EnvVar, PodSecurityContext, PodSpec, PodTemplateSpec, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta};
@@ -47,6 +47,11 @@ pub fn create_compute_deployment(name: &str, branch: &NeonBranch, project: &Neon
                     ..Default::default()
                 }),
                 spec: Some(PodSpec {
+                    security_context: Some(PodSecurityContext {
+                        run_as_user: Some(1000),
+                        fs_group: Some(1000),
+                        ..Default::default()
+                    }),
                     containers: vec![Container {
                         name: "storage-broker".to_string(),
                         image: Some(format!("neondatabase/compute-node-v{}", branch.spec.pg_version)),
@@ -57,7 +62,7 @@ pub fn create_compute_deployment(name: &str, branch: &NeonBranch, project: &Neon
                             "--compute-id".to_string(),
                             name.to_string(),
                             "-p".to_string(), // Operator URL flag
-                            "http://neon-operator.neon.svc.cluster.local:8080".to_string(),
+                            "http://neon-operator.neon:8080".to_string(),
                             "--pgbin".to_string(),
                             "/usr/local/bin/postgres".to_string(),
                         ]),

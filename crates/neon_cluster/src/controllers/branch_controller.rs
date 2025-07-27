@@ -43,7 +43,7 @@ impl NeonBranch {
         let name = self.name_any();
 
         let branch_client: Api<NeonBranch> = Api::namespaced(client.clone(), &namespace);
-        let project_client: Api<NeonProject> = Api::namespaced(client.clone(), "neon");
+        let project_client: Api<NeonProject> = Api::namespaced(client.clone(), &namespace);
         let project = match project_client
             .get_opt(&self.spec.project_id)
             .await
@@ -114,11 +114,12 @@ impl NeonBranch {
                 self.spec.timeline_id.clone().unwrap(),
                 self.spec.pg_version
             ))
+            .timeout(std::time::Duration::from_secs(10))
             .send()
             .await
         {
             Ok(response) => {
-                if !response.status().is_success() {
+                if !response.status().is_success() && response.status() != 409 {
                     tracing::warn!("Failed to create timeline on pageserver: {:?}", response.status());
                     return Ok(Action::requeue(Duration::from_secs(5)));
                 }
@@ -273,7 +274,10 @@ pub async fn reconcile(neon_branch: Arc<NeonBranch>, ctx: Arc<Context>) -> Resul
         },
     )
     .await
-    .map_err(|e| errors::Error::StdError(errors::StdError::FinalizerError(Box::new(e))))
+    .map_err(|e| {
+        error!("Failed to reconcile neon_branch: {}", e);
+        errors::Error::StdError(errors::StdError::FinalizerError(Box::new(e)))
+    })
 }
 
 /// Diagnostics to be exposed by the web server

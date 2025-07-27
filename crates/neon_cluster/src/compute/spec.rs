@@ -101,7 +101,7 @@ pub async fn generate_compute_spec(client: &kube::Client, compute_id: &str) -> R
     let safekeeper_connstrings: Vec<String> = (0..3)
         .map(|i| {
             format!(
-                "postgresql://postgres:@safekeeper-{}-{}.neon.svc.cluster.local:5454",
+                "postgresql://postgres:@safekeeper-{}-{}.neon:5454",
                 cluster_name, i
             )
         })
@@ -264,7 +264,7 @@ fn build_postgres_settings(
         json!({
             "name": "neon.safekeepers",
             "value": format!(
-                "safekeeper-{0}-0.neon.svc.cluster.local:5454,safekeeper-{0}-1.neon.svc.cluster.local:5454,safekeeper-{0}-2.neon.svc.cluster.local:5454",
+                "safekeeper-{0}-0.neon:5454,safekeeper-{0}-1.neon:5454,safekeeper-{0}-2.neon:5454",
                 cluster_name
             ),
             "vartype": "string"

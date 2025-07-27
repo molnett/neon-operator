@@ -57,7 +57,7 @@ impl StorageControllerClient {
             })?;
 
         let connstring = format!(
-            "host=pageserver-{}.pageserver-basic-cluster-headless.neon.svc.cluster.local port=6400",
+            "host=pageserver-{}.pageserver-basic-cluster-headless.neon port=6400",
             primary_shard.node_attached
         );
 

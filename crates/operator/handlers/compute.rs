@@ -1,5 +1,6 @@
 use actix_web::{get, HttpResponse, Responder};
 use kube::Client;
+use neon_cluster::storage_controller::StorageControllerClient;
 use tracing::error;
 
 use crate::services::compute_service::ComputeService;

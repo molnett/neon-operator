@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::str::FromStr;
+
 use crate::controllers::resources::{NeonBranch, NeonProject};
 use crate::storage_controller::client::StorageControllerClient;
 use crate::util::errors::{Error, Result, StdError};
@@ -5,10 +8,159 @@ use crate::util::secrets::get_jwt_keys_from_secret;
 use k8s_openapi::api::apps::v1::Deployment;
 use kube::api::{Api, ListParams};
 use kube::ResourceExt;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tracing::{error, info};
 
-pub async fn generate_compute_spec(client: &kube::Client, compute_id: &str) -> Result<serde_json::Value> {
+/// Shard information for compute hook notification
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct ComputeHookNotifyRequestShard {
+    pub node_id: u64,
+    pub shard_number: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ComputeHookNotifyRequest {
+    pub tenant_id: String,
+    pub stripe_size: Option<u32>,
+    pub shards: Vec<ComputeHookNotifyRequestShard>,
+}
+
+#[derive(Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Hash)]
+pub struct ShardIndex {
+    pub shard_number: u8,
+    pub shard_count: u8,
+}
+
+impl std::fmt::Display for ShardIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:02x}{:02x}", self.shard_number, self.shard_count)
+    }
+}
+
+impl std::fmt::Debug for ShardIndex {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Debug is the same as Display: the compact hex representation
+        write!(f, "{self}")
+    }
+}
+
+impl std::str::FromStr for ShardIndex {
+    type Err = hex::FromHexError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Expect format: 1 byte shard number, 1 byte shard count
+        if s.len() == 4 {
+            let bytes = s.as_bytes();
+            let mut shard_parts: [u8; 2] = [0u8; 2];
+            hex::decode_to_slice(bytes, &mut shard_parts)?;
+            Ok(Self {
+                shard_number: shard_parts[0],
+                shard_count: shard_parts[1],
+            })
+        } else {
+            Err(hex::FromHexError::InvalidStringLength)
+        }
+    }
+}
+
+impl From<[u8; 2]> for ShardIndex {
+    fn from(b: [u8; 2]) -> Self {
+        Self {
+            shard_number: b[0] as u8,
+            shard_count: b[1] as u8,
+        }
+    }
+}
+
+impl Serialize for ShardIndex {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if serializer.is_human_readable() {
+            serializer.collect_str(self)
+        } else {
+            // Binary encoding is not used in index_part.json, but is included in anticipation of
+            // switching various structures (e.g. inter-process communication, remote metadata) to more
+            // compact binary encodings in future.
+            let mut packed: [u8; 2] = [0; 2];
+            packed[0] = self.shard_number;
+            packed[1] = self.shard_count;
+            packed.serialize(serializer)
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ShardIndex {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct IdVisitor {
+            is_human_readable_deserializer: bool,
+        }
+
+        impl<'de> serde::de::Visitor<'de> for IdVisitor {
+            type Value = ShardIndex;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                if self.is_human_readable_deserializer {
+                    formatter.write_str("value in form of hex string")
+                } else {
+                    formatter.write_str("value in form of integer array([u8; 2])")
+                }
+            }
+
+            fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'de>,
+            {
+                let s = serde::de::value::SeqAccessDeserializer::new(seq);
+                let id: [u8; 2] = Deserialize::deserialize(s)?;
+                Ok(ShardIndex::from(id))
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                ShardIndex::from_str(v).map_err(E::custom)
+            }
+        }
+
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_str(IdVisitor {
+                is_human_readable_deserializer: true,
+            })
+        } else {
+            deserializer.deserialize_tuple(
+                2,
+                IdVisitor {
+                    is_human_readable_deserializer: false,
+                },
+            )
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct PageserverShardInfo {
+    pub pageservers: Vec<PageserverShardConnectionInfo>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
+pub struct PageserverShardConnectionInfo {
+    pub id: Option<u32>,
+    pub libpq_url: Option<String>,
+    pub grpc_url: Option<String>,
+}
+
+pub async fn generate_compute_spec(
+    client: &kube::Client,
+    request: Option<&ComputeHookNotifyRequest>,
+    compute_id: &str,
+) -> Result<serde_json::Value> {
     info!("Starting compute spec generation for compute_id: {}", compute_id);
 
     // 1. Find the compute deployment to get cluster context
@@ -81,23 +233,7 @@ pub async fn generate_compute_spec(client: &kube::Client, compute_id: &str) -> R
 
     info!("Successfully retrieved JWT keys");
 
-    // 4. Get pageserver connection string - fetch from storage-controller
-    let storage_client = StorageControllerClient::new(cluster_name.as_str());
-    let pageserver_connstring = match storage_client.get_pageserver_connstring(tenant_id).await {
-        Ok(connstring) => {
-            info!("Retrieved pageserver connection string: {}", connstring);
-            connstring
-        }
-        Err(e) => {
-            error!(
-                "Failed to get pageserver connection string for tenant {}: {}",
-                tenant_id, e
-            );
-            return Err(e);
-        }
-    };
-
-    // 5. Construct safekeeper connections (always 3)
+    // 4. Construct safekeeper connections (always 3)
     let safekeeper_connstrings: Vec<String> = (0..3)
         .map(|i| {
             format!(
@@ -107,16 +243,59 @@ pub async fn generate_compute_spec(client: &kube::Client, compute_id: &str) -> R
         })
         .collect();
 
-    // 6. Build postgres settings
+    // 5. Build postgres settings
     let settings = build_postgres_settings(
         &cluster_name,
         &project.spec.tenant_id.unwrap(),
         &branch.spec.timeline_id.unwrap(),
-        &pageserver_connstring,
-        Some(2048),
     );
 
-    // 7. Generate spec
+    // 6. Generate spec
+
+    let mut shards = HashMap::<ShardIndex, PageserverShardInfo>::new();
+
+    let fallback_request;
+    let actual_request = if let Some(req) = request {
+        req
+    } else {
+        let client = StorageControllerClient::new(&cluster_name);
+        let tenant_info = client.get_tenant_info(tenant_id).await?;
+
+        fallback_request = ComputeHookNotifyRequest {
+            tenant_id: tenant_info.tenant_id,
+            stripe_size: Some(tenant_info.stripe_size),
+            shards: tenant_info
+                .shards
+                .iter()
+                .enumerate()
+                .map(|(i, shard)| ComputeHookNotifyRequestShard {
+                    node_id: shard.node_attached,
+                    shard_number: i as u32,
+                })
+                .collect(),
+        };
+        &fallback_request
+    };
+
+    for shard in actual_request.shards.clone().into_iter() {
+        shards.insert(
+            ShardIndex {
+                shard_number: 0,
+                shard_count: 0,
+            },
+            PageserverShardInfo {
+                pageservers: vec![PageserverShardConnectionInfo {
+                    id: Some(shard.node_id as u32),
+                    libpq_url: Some(format!(
+                        "postgres://no_user@pageserver-{}.pageserver-{}-headless.neon:6400",
+                        shard.node_id, cluster_name
+                    )),
+                    grpc_url: None,
+                }],
+            },
+        );
+    }
+
     Ok(json!({
         "spec": {
             "format_version": 1.0,
@@ -134,6 +313,10 @@ pub async fn generate_compute_spec(client: &kube::Client, compute_id: &str) -> R
             },
             "delta_operations": [],
             "safekeeper_connstrings": safekeeper_connstrings,
+            "pageserver_connection_info": json!({
+                "shard_count": 0,
+                "shards": shards,
+            }),
         },
         "compute_ctl_config": {
             "jwks": jwks
@@ -142,7 +325,7 @@ pub async fn generate_compute_spec(client: &kube::Client, compute_id: &str) -> R
     }))
 }
 
-async fn find_compute_deployment(client: &kube::Client, compute_id: &str) -> Result<Deployment> {
+pub async fn find_compute_deployment(client: &kube::Client, compute_id: &str) -> Result<Deployment> {
     let deployments: Api<Deployment> = Api::all(client.clone());
     let deployment_name = format!("{}-compute-node", compute_id);
 
@@ -162,7 +345,7 @@ async fn find_compute_deployment(client: &kube::Client, compute_id: &str) -> Res
     Ok(deps.clone().iter().next().unwrap().clone())
 }
 
-fn extract_cluster_name(deployment: &Deployment) -> Result<String> {
+pub fn extract_cluster_name(deployment: &Deployment) -> Result<String> {
     deployment
         .metadata
         .annotations
@@ -237,14 +420,8 @@ async fn find_project_and_branch(
     Ok((project, branch))
 }
 
-fn build_postgres_settings(
-    cluster_name: &str,
-    tenant_id: &str,
-    timeline_id: &str,
-    pageserver_connstring: &str,
-    shard_stripe_size: Option<u32>,
-) -> Vec<serde_json::Value> {
-    let mut settings = vec![
+fn build_postgres_settings(cluster_name: &str, tenant_id: &str, timeline_id: &str) -> Vec<serde_json::Value> {
+    let settings = vec![
         json!({"name": "fsync", "value": "off", "vartype": "bool"}),
         json!({"name": "wal_level", "value": "logical", "vartype": "enum"}),
         json!({"name": "wal_log_hints", "value": "on", "vartype": "bool"}),
@@ -271,19 +448,10 @@ fn build_postgres_settings(
         }),
         json!({"name": "neon.timeline_id", "value": timeline_id, "vartype": "string"}),
         json!({"name": "neon.tenant_id", "value": tenant_id, "vartype": "string"}),
-        json!({"name": "neon.pageserver_connstring", "value": pageserver_connstring, "vartype": "string"}),
         json!({"name": "max_replication_write_lag", "value": "500MB", "vartype": "string"}),
         json!({"name": "max_replication_flush_lag", "value": "10GB", "vartype": "string"}),
+        json!({"name": "neon.max_file_cache_size", "value": "1GB", "vartype": "string"}),
     ];
-
-    // Add shard_stripe_size if provided
-    if let Some(stripe_size) = shard_stripe_size {
-        settings.push(json!({
-            "name": "neon.shard_stripe_size",
-            "value": stripe_size.to_string(),
-            "vartype": "integer"
-        }));
-    }
 
     settings
 }

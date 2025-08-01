@@ -55,16 +55,13 @@ pub fn create_compute_deployment(name: &str, branch: &NeonBranch, project: &Neon
                     containers: vec![Container {
                         name: "storage-broker".to_string(),
                         image: Some(format!("neondatabase/compute-node-v{}", branch.spec.pg_version)),
-                        args: Some(vec![
-                            "--pgdata".to_string(),
-                            "/.neon/data/pgdata".to_string(),
-                            "--connstr=postgresql://cloud_admin:@0.0.0.0:55433/postgres".to_string(),
-                            "--compute-id".to_string(),
-                            name.to_string(),
-                            "-p".to_string(), // Operator URL flag
-                            "http://neon-operator.neon:8080".to_string(),
-                            "--pgbin".to_string(),
-                            "/usr/local/bin/postgres".to_string(),
+                        command: Some(vec![
+                            "bash".to_string(),
+                            "-c".to_string(),
+                            format!(
+                                "echo \"$INITIAL_SPEC_JSON\" > /var/spec.json && /usr/local/bin/compute_ctl --pgdata /.neon/data/pgdata --connstr=postgresql://cloud_admin:@0.0.0.0:55433/postgres --compute-id {} -p http://neon-operator.neon:8080 --pgbin /usr/local/bin/postgres",
+                                name
+                            ),
                         ]),
                         ports: Some(vec![ContainerPort {
                             container_port: 55433,
@@ -82,18 +79,31 @@ pub fn create_compute_deployment(name: &str, branch: &NeonBranch, project: &Neon
                                 ..Default::default()
                             },
                         ]),
-                        env: Some(vec![EnvVar {
-                            name: "OTEL_SDK_DISABLED".to_string(),
-                            value: Some("true".to_string()),
-                            ..Default::default()
-                        }]),
+                        env: Some(vec![
+                            EnvVar {
+                                name: "OTEL_SDK_DISABLED".to_string(),
+                                value: Some("true".to_string()),
+                                ..Default::default()
+                            },
+                            EnvVar {
+                                name: "INITIAL_SPEC_JSON".to_string(),
+                                value_from: Some(k8s_openapi::api::core::v1::EnvVarSource {
+                                    config_map_key_ref: Some(k8s_openapi::api::core::v1::ConfigMapKeySelector {
+                                        name: format!("{}-compute-spec", name),
+                                        key: "spec.json".to_string(),
+                                        optional: Some(false),
+                                    }),
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
+                            },
+                        ]),
                         ..Default::default()
                     }],
                     volumes: Some(vec![
                         Volume {
                             name: "spec-volume".to_string(),
-                            config_map: Some(k8s_openapi::api::core::v1::ConfigMapVolumeSource {
-                                name: format!("{}-compute-spec", name),
+                            empty_dir: Some(k8s_openapi::api::core::v1::EmptyDirVolumeSource {
                                 ..Default::default()
                             }),
                             ..Default::default()

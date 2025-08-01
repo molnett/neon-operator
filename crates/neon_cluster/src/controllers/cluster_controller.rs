@@ -168,13 +168,7 @@ impl NeonCluster {
 
         // Generate new key pair
         let keypair = Ed25519KeyPair::generate()?;
-        let secret_data_raw = keypair.to_secret_data()?;
-
-        // Convert Vec<u8> to ByteString for Kubernetes API
-        let secret_data: std::collections::BTreeMap<String, k8s_openapi::ByteString> = secret_data_raw
-            .into_iter()
-            .map(|(k, v)| (k, k8s_openapi::ByteString(v)))
-            .collect();
+        let secret_data = keypair.to_secret_data()?;
 
         // Create the secret
         let secret = Secret {

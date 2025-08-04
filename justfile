@@ -89,15 +89,15 @@ build-e2e-image:
 
 # Run E2E tests (requires operator image)
 test-e2e: build-e2e-image
-  cargo test --package e2e_tests --test basic_e2e -- --test-threads=1 --nocapture
+  cargo test --package e2e_tests --test basic_e2e -- --test-threads=1 --nocapture --ignored
 
 # Run E2E tests with existing image (faster iteration)
 test-e2e-fast:
-  cargo test --package e2e_tests --test basic_e2e -- --test-threads=1 --nocapture
+  cargo test --package e2e_tests --test basic_e2e -- --test-threads=1 --nocapture --ignored
 
 # Run E2E tests with verbose output
 test-e2e-verbose: build-e2e-image
-  RUST_LOG=debug cargo test --package e2e_tests --test basic_e2e -- --test-threads=1 --nocapture
+  RUST_LOG=debug cargo test --package e2e_tests --test basic_e2e -- --test-threads=1 --nocapture --ignored
 
 # Clean up any leftover e2e test clusters
 cleanup-e2e:

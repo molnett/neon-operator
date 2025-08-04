@@ -1,6 +1,5 @@
 use neon_cluster::{controllers, util::telemetry};
 
-mod compute;
 mod handlers;
 mod server;
 mod services;

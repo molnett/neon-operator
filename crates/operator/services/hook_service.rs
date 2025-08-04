@@ -4,26 +4,23 @@ use chrono::{self, Duration};
 use k8s_openapi::{
     api::{
         apps::v1::Deployment,
-        core::v1::{Pod, Service},
+        core::v1::Service,
     },
-    serde_json::{self, json},
+    serde_json::{self},
 };
 use kube::{
-    api::{Api, ListParams, Patch, PatchParams},
+    api::{Api, ListParams},
     Client,
 };
 use neon_cluster::{
     compute::{
         generate_compute_spec,
-        spec::{
-            extract_cluster_name, find_compute_deployment, ComputeHookNotifyRequest,
-        },
+        spec::{extract_cluster_name, find_compute_deployment, ComputeHookNotifyRequest},
     },
     util::secrets::get_key_pair_from_secret,
 };
 use tracing::{error, info};
 
-use crate::compute::operations::exec_write_file_to_pod;
 
 /// Service for processing compute hook notifications
 pub struct HookService {
@@ -42,18 +39,13 @@ impl HookService {
             request.tenant_id
         );
 
-        // The compute pods are deployed in the "default" namespace
-        let namespace = "default";
-
-        // Find compute pods for this tenant
-        let deployments: Api<Deployment> = Api::namespaced(self.client.clone(), namespace);
-        let pods: Api<Pod> = Api::namespaced(self.client.clone(), namespace);
-
         // List all deployments and find ones for this tenant
+        let deployments: Api<Deployment> = Api::all(self.client.clone());
+
         let deployment_list = deployments
             .list(&ListParams::default())
             .await
-            .map_err(|e| format!("Failed to list deployments in namespace {}: {}", namespace, e))?;
+            .map_err(|e| format!("Failed to list deployments: {}", e))?;
 
         // Find deployments that belong to this tenant
         let mut updated_count = 0;
@@ -92,87 +84,6 @@ impl HookService {
             "Updated {} compute pod(s) for tenant {}",
             updated_count, request.tenant_id
         ))
-    }
-
-    /// Write compute spec directly to container file and trigger pod resync
-    async fn write_compute_spec_to_container(
-        &self,
-        request: &ComputeHookNotifyRequest,
-        pods: &Api<Pod>,
-        deployment_name: &str,
-    ) -> Result<(), String> {
-        // Extract compute_name from deployment name
-        // The deployment name pattern: {branch-name}-compute-node
-        let compute_name = deployment_name
-            .strip_suffix("-compute-node")
-            .unwrap_or(deployment_name);
-
-        // Generate the compute spec using the function from spec.rs
-        let spec_json = generate_compute_spec(&self.client, Some(request), compute_name)
-            .await
-            .map_err(|e| format!("Failed to generate compute spec for {}: {}", compute_name, e))?;
-
-        let spec_json_string = serde_json::to_string_pretty(&spec_json)
-            .map_err(|e| format!("Failed to serialize compute spec: {}", e))?;
-
-        // Find the pod for this deployment
-        let pod_list = pods
-            .list(&ListParams::default().labels(&format!("app={}", deployment_name)))
-            .await
-            .map_err(|e| format!("Failed to list pods for deployment {}: {}", deployment_name, e))?;
-
-        if let Some(pod) = pod_list.items.first() {
-            if let Some(pod_name) = &pod.metadata.name {
-                info!("Writing compute spec to /var/spec.json in pod {}", pod_name);
-
-                // Execute command to write spec.json to /var/spec.json in the container
-                exec_write_file_to_pod(pods, pod_name, &spec_json_string)
-                    .await
-                    .map_err(|e| format!("Failed to write spec to pod {}: {}", pod_name, e))?;
-
-                // Update pod annotation to trigger resync
-                self.update_pod_annotation(pods, deployment_name).await?;
-
-                Ok(())
-            } else {
-                Err("Pod name not found".to_string())
-            }
-        } else {
-            Err(format!("No pods found for deployment {}", deployment_name))
-        }
-    }
-
-    /// Update pod annotation to trigger ConfigMap resync
-    async fn update_pod_annotation(&self, pods: &Api<Pod>, deployment_name: &str) -> Result<(), String> {
-        let pod_list = pods
-            .list(&ListParams::default().labels(&format!("app={}", deployment_name)))
-            .await
-            .map_err(|e| format!("Failed to list pods for deployment {}: {}", deployment_name, e))?;
-
-        if let Some(pod) = pod_list.items.first() {
-            if let Some(pod_name) = &pod.metadata.name {
-                // Update annotation to trigger ConfigMap resync
-                let timestamp = chrono::Utc::now().to_rfc3339();
-                let patch = json!({
-                    "metadata": {
-                        "annotations": {
-                            "last-notify-attach-hook": timestamp
-                        }
-                    }
-                });
-
-                pods.patch(pod_name, &PatchParams::default(), &Patch::Merge(patch))
-                    .await
-                    .map_err(|e| format!("Failed to update pod annotation for {}: {}", pod_name, e))?;
-
-                info!("Updated pod {} annotation to trigger ConfigMap resync", pod_name);
-                Ok(())
-            } else {
-                Err("Pod name not found".to_string())
-            }
-        } else {
-            Ok(()) // No pods found, but this isn't an error condition
-        }
     }
 
     async fn refresh_configuration(

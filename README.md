@@ -1,25 +1,18 @@
 # Neon Kubernetes Operator
 
-A Kubernetes operator for managing [Neon](https://neon.tech) database clusters. This project is currently in early development and is not ready for production use.
+A Kubernetes operator for managing [Neon](https://neon.com) database clusters. This operator implements Neon's core architecture with separated compute and storage, enabling you to run Neon's serverless Postgres platform on Kubernetes.
 
 ## Project Status
 
-This is an early-stage project that provides basic functionality for running Neon clusters in Kubernetes. While functional for testing and development, it is not yet production-ready.
+This operator is functional for development and testing environments. It implements Neon's core architecture components and provides basic cluster management capabilities.
 
-### What Works
+### What's Implemented
 
-- Basic Neon cluster deployment
-- Custom Resource Definitions (CRDs) for Neon clusters
-- Basic reconciliation of cluster state
-
-### What's Coming / Not Implemented
-
-- High availability configurations
-- Advanced monitoring and metrics
-- Production-grade security features
-- Automatic backup and restore
-- Rolling updates
-- Multi-tenant support
+- **Neon Architectural Components**: Pageservers, Safekeepers, Storage Broker, and Storage Controller
+- **Notify Hooks**: Full support for notify-attach hooks, which reconfigured Compute to communicate with a different pageserver
+- **Basic Branching**: Create new database branches within projects
+- **Persistent Storage**: Configurable storage for pageservers and safekeepers
+- **E2E Testing**: End-to-end test suite for validating operator functionality
 
 ## Prerequisites
 
@@ -27,92 +20,156 @@ This is an early-stage project that provides basic functionality for running Neo
 
 - Rust toolchain (1.70 or later)
 - Kubernetes cluster (1.28+)
-- kubectl
-- [kubebuilder](https://book.kubebuilder.io/quick-start.html)
+- kubectl configured for your cluster
 - [just](https://github.com/casey/just) command runner
+- [Tilt](https://tilt.dev/) for local development (optional)
+- Docker for building images
 
-### Neon Repository Setup
+### Production requirements
 
-This operator currently requires the main Neon repository to be checked out adjacent to this repository for builds to work. We plan to remove this dependency in future versions.
+- NVMe-supported PVCs for Pageservers and Safekeepers
+- Postgres instance for Storage Controller
 
-1. Clone the Neon repository next to this operator repository:
+## Development
 
-   ```bash
-   git clone https://github.com/neondatabase/neon.git
-   ```
+A single-purpose Kind cluster is recommended for local development.
 
-2. Follow the setup instructions in the [Neon repository](https://github.com/neondatabase/neon) to install dependencies
-3. Build Neon once using make:
+### Local Development with Tilt
 
-   ```bash
-   cd neon
-   make
-   ```
+For rapid iteration during development:
 
-Your directory structure should look like:
+```bash
+# Start Tilt (rebuilds and redeploys on changes)
+tilt up
 
+# View Tilt UI
+tilt up --web
 ```
-parent-directory/
-├── neon/             # Main Neon repository
-└── neon-operator/    # This repository
+
+### Manual Development
+
+```bash
+# Install CRDs
+just install-crd
+```
+
+## Testing
+
+### Unit Tests
+```bash
+just test-unit
+```
+
+### Integration Tests
+```bash
+# Requires CRDs installed
+just test-integration
+```
+
+### End-to-End Tests
+```bash
+# Run full E2E test suite (builds image and tests cluster lifecycle)
+just test-e2e
+
+# Run E2E tests with existing image (faster iteration)
+just test-e2e-fast
+
+# Cleanup any leftover test clusters
+just cleanup-e2e
 ```
 
 ## Building
 
-To build the operator:
-
 ```bash
+# Build for current architecture
 just build-base
-```
 
-## Local Development
-
-To run the operator locally against your Kubernetes cluster:
-
-```bash
-just run
+# Build for x86_64
+just build-base-x86
 ```
 
 ## Usage
 
 ### Installing the Operator
 
-1. Apply the CRDs to your cluster:
-
-   ```bash
-   kubectl apply -f yaml/crds/
-   ```
+1. Generate and apply CRDs:
+```bash
+just install-crd
+```
 
 2. Deploy the operator:
-
-   ```bash
-   kubectl apply -f yaml/operator/
-   ```
+```bash
+kubectl apply -f yaml/operator/
+```
 
 ### Creating a Neon Cluster
 
-Example manifest (basic configuration):
-
 ```yaml
-apiVersion: neon.tech/v1alpha1
+apiVersion: oltp.molnett.org/v1alpha1
 kind: NeonCluster
 metadata:
-  name: example-cluster
+  name: my-neon-cluster
 spec:
-  # Configuration details TBD
+  storage:
+    pageserver:
+      storageClass: "fast-ssd"
+      size: "10Gi"
+    safekeeper:
+      storageClass: "fast-ssd"
+      size: "5Gi"
 ```
 
-Detailed configuration options and examples will be added as the project matures.
+### Creating a Project
+
+```yaml
+kind: NeonProject
+apiVersion: oltp.molnett.org/v1
+metadata:
+  name: molnett-project
+spec:
+  cluster_name: basic-cluster
+  id: neon-project
+  name: neon-project
+  pg_version: "PG17"
+```
+
+### Creating a Branch
+
+```yaml
+kind: NeonBranch
+apiVersion: oltp.molnett.org/v1
+metadata:
+  name: neon-main
+spec:
+  name: main
+  pg_version: "PG17"
+  default_branch: true
+  project_id: neon-project
+```
+
+## Monitoring
+
+The operator exposes HTTP endpoints on port 8080:
+- `/health` - Health check endpoint
+- `/metrics` - Prometheus metrics (basic)
+- `/` - Diagnostics information
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. Before contributing:
+Contributions welcome! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) file for details on how to contribute.
 
-1. Open an issue to discuss your proposed changes
-2. Ensure all tests pass locally
-3. Add tests for new functionality
-4. Update documentation as needed
+## Architecture
+
+This operator implements Neon's separation of compute and storage:
+
+- **Pageservers**: Handles reads from cache and Object Storage
+- **Safekeepers**: Provide consensus and WAL durability
+- **Storage Broker**: Coordinates storage operations
+- **Storage Controller**: Manages storage cluster state
+- **Compute Nodes**: PostgreSQL instances that connect to storage
+
+Each component runs as Kubernetes workloads with persistent storage and service discovery.
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Apache License 2.0 - see [LICENSE](LICENSE) file for details.

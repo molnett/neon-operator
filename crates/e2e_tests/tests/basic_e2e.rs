@@ -40,6 +40,7 @@ fn init_logging() {
 }
 
 #[tokio::test]
+#[ignore = "uses k8s current-context"]
 #[serial]
 async fn test_operator_health() {
     init_logging();
@@ -87,6 +88,7 @@ async fn test_operator_health() {
 }
 
 #[tokio::test]
+#[ignore = "uses k8s current-context"]
 #[serial]
 async fn test_branch_creation() {
     init_logging();
@@ -139,7 +141,7 @@ async fn test_branch_creation() {
         let mut retry_count = 0;
         let max_retries = 5;
         let retry_delay = Duration::from_secs(10);
-        
+
         loop {
             match validate_postgres_connectivity(&env, "test-branch").await {
                 Ok(_) => {
@@ -149,11 +151,20 @@ async fn test_branch_creation() {
                 Err(e) => {
                     retry_count += 1;
                     if retry_count >= max_retries {
-                        tracing::error!("Failed to validate PostgreSQL connectivity after {} retries: {}", max_retries, e);
+                        tracing::error!(
+                            "Failed to validate PostgreSQL connectivity after {} retries: {}",
+                            max_retries,
+                            e
+                        );
                         panic!("PostgreSQL connectivity validation failed: {}", e);
                     }
-                    tracing::warn!("PostgreSQL connectivity validation failed (attempt {}/{}): {}. Retrying in {:?}...", 
-                                 retry_count, max_retries, e, retry_delay);
+                    tracing::warn!(
+                        "PostgreSQL connectivity validation failed (attempt {}/{}): {}. Retrying in {:?}...",
+                        retry_count,
+                        max_retries,
+                        e,
+                        retry_delay
+                    );
                     tokio::time::sleep(retry_delay).await;
                 }
             }

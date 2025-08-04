@@ -4,7 +4,7 @@ use chrono::{self, Duration};
 use k8s_openapi::{
     api::{
         apps::v1::Deployment,
-        core::v1::{Pod, Secret, Service},
+        core::v1::{Pod, Service},
     },
     serde_json::{self, json},
 };
@@ -17,18 +17,13 @@ use neon_cluster::{
         generate_compute_spec,
         spec::{
             extract_cluster_name, find_compute_deployment, ComputeHookNotifyRequest,
-            ComputeHookNotifyRequestShard,
         },
     },
-    util::secrets::{get_jwt_keys_from_secret, get_key_pair_from_secret},
+    util::secrets::get_key_pair_from_secret,
 };
-use tokio::io::DuplexStream;
 use tracing::{error, info};
 
-use crate::{
-    compute::operations::{exec_write_file_to_pod, send_sighup_to_compute},
-    handlers::compute,
-};
+use crate::compute::operations::exec_write_file_to_pod;
 
 /// Service for processing compute hook notifications
 pub struct HookService {

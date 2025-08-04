@@ -1,7 +1,7 @@
 use super::resources::*;
 use crate::util::errors::{Error, StdError};
 use crate::util::project_status::{ProjectPhase, ProjectStatusManager};
-use crate::util::{errors, errors::Result, metrics, telemetry};
+use crate::util::{errors, errors::Result, metrics};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use k8s_openapi::api::{apps::v1::Deployment, core::v1::Service};
@@ -180,10 +180,7 @@ pub struct Context {
     pub metrics: metrics::Metrics,
 }
 
-#[instrument(skip(ctx, neon_project), fields(trace_id))]
 pub async fn reconcile(neon_project: Arc<NeonProject>, ctx: Arc<Context>) -> Result<Action> {
-    let trace_id = telemetry::get_trace_id();
-    Span::current().record("trace_id", field::display(&trace_id));
     let _timer = ctx.metrics.count_and_measure("project");
     ctx.diagnostics.write().await.last_event = Utc::now();
 

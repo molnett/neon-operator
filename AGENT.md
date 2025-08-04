@@ -18,7 +18,7 @@ The project is structured as a Rust workspace with three main crates:
 
 The operator runs three main controllers concurrently:
 - **Cluster Controller**: Manages NeonCluster resources and overall cluster state
-- **Project Controller**: Handles Neon project lifecycle 
+- **Project Controller**: Handles Neon project lifecycle
 - **Branch Controller**: Manages database branches within projects
 
 Controllers are located in `crates/neon_cluster/src/controllers/` and each has its own state management.
@@ -32,9 +32,6 @@ just build-base
 
 # Run operator locally against your cluster
 just run
-
-# Run with OpenTelemetry tracing
-just run-telemetry
 ```
 
 ### Testing
@@ -44,9 +41,6 @@ just test-unit
 
 # Run integration tests (requires CRDs installed)
 just test-integration
-
-# Run telemetry tests
-just test-telemetry
 ```
 
 ### CRD Management
@@ -84,4 +78,3 @@ The operator exposes HTTP endpoints on port 8080:
 
 Environment variables:
 - `RUST_LOG` - Controls logging levels (e.g., `info,kube=debug,controller=debug`)
-- `OPENTELEMETRY_ENDPOINT_URL` - OpenTelemetry collector endpoint for tracing

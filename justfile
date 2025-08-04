@@ -9,7 +9,6 @@ install-crd: generate
 generate:
   cargo run -p crdgen > yaml/crd.yaml
 
-# run without opentelemetry
 run:
   RUST_LOG=info,kube=debug,controller=debug cargo run -p operator
 

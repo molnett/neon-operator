@@ -78,21 +78,7 @@ impl HookService {
                             .strip_suffix("-compute-node")
                             .unwrap_or(deployment_name);
 
-                        /*// Write spec directly to container file and trigger pod resync
-                        self.write_compute_spec_to_container(request, &pods, deployment_name)
-                            .await?;
-
-                        // Send SIGHUP to the compute pod
-                        send_sighup_to_compute(&pods, deployment_name)
-                            .await
-                            .map_err(|e| {
-                                format!("Failed to send SIGHUP to deployment {}: {}", deployment_name, e)
-                            })?;
-
-                        info!("Successfully sent SIGHUP to deployment {}", deployment_name);*/
-
-                        // Refresh configuration
-
+                        // Refresh configuration which triggers the compute to attach to the new pageserver
                         self.refresh_configuration(request, compute_name).await?;
                         updated_count += 1;
                     }

@@ -13,9 +13,10 @@ pub static NEON_BRANCH_FINALIZER: &str = "neon-branch.oltp.molnett.org";
 #[derive(Default, Deserialize, Serialize, Clone, Debug, JsonSchema)]
 pub enum PGVersion {
     PG14 = 14,
-    #[default]
     PG15 = 15,
     PG16 = 16,
+    #[default]
+    PG17 = 17,
 }
 
 impl Display for PGVersion {

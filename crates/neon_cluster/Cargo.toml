@@ -24,14 +24,14 @@ opentelemetry-otlp = { version = "0.13.0", features = [
 ], optional = true }
 prometheus = "0.13.3"
 rand = "0.8.5"
-reqwest = { version = "0.12.8", features = ["json"] }
-ed25519-dalek = { version = "2.1.1", features = ["rand_core"] }
+ed25519-dalek = { version = "2.1.1", features = ["rand_core", "pkcs8"] }
 base64 = "0.22.1"
 sha2 = "0.10.8"
 schemars = { version = "0.8.12", features = ["chrono"] }
 serde = { version = "1.0.185", features = ["derive"] }
 serde_json = "1.0.105"
 serde_yaml = "0.9.25"
+jsonwebtoken = "9.3"
 thiserror = "1.0.47"
 tokio = { version = "1.32.0", features = ["macros", "rt-multi-thread"] }
 tonic = { version = "0.9", optional = true }
@@ -39,6 +39,7 @@ tracing = "0.1.37"
 tracing-opentelemetry = "0.20.0"
 tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
 openssl-sys = { version = "0.9.104", features = ["vendored"] }
+reqwest = { version = "0.12.22", features = ["json"] }
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"

@@ -10,7 +10,7 @@ tokio-test = "0.4"
 serial_test = "3.0"
 
 # Kubernetes
-kube = { version = "1.1.0", features = ["client", "derive", "config"] }
+kube = { version = "1.1.0", features = ["client", "derive", "config", "ws"] }
 k8s-openapi = { version = "0.25", features = ["latest"] }
 
 # S3/MinIO client for bucket setup

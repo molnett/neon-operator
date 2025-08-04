@@ -14,7 +14,7 @@ impl ComputeService {
 
     /// Generate compute spec for a given compute ID
     pub async fn generate_spec(&self, compute_id: &str) -> Result<serde_json::Value, String> {
-        generate_compute_spec(&self.client, compute_id)
+        generate_compute_spec(&self.client, None, compute_id)
             .await
             .map_err(|e| e.to_string())
     }

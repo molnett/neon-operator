@@ -50,6 +50,19 @@ pub fn update_compute_spec_json(
         }
     }
 
+    // Add neon.max_file_cache_size if it doesn't exist
+    let has_max_file_cache_size = settings
+        .iter()
+        .any(|s| s["name"].as_str() == Some("neon.max_file_cache_size"));
+
+    if !has_max_file_cache_size {
+        settings.push(json!({
+            "name": "neon.max_file_cache_size",
+            "value": "1024MB",
+            "vartype": "string"
+        }));
+    }
+
     k8s_openapi::serde_json::to_string_pretty(&spec)
         .map_err(|e| format!("Failed to serialize updated spec: {}", e))
 }

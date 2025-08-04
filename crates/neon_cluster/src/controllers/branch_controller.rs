@@ -2,6 +2,7 @@ use super::branch::{
     create_default_database, ensure_deployment, get_or_create_default_user, is_compute_node_ready,
 };
 use super::resources::*;
+use crate::controllers::branch::ensure_services;
 use crate::util::branch_status::{
     BranchPhase, BranchStatusManager, DEFAULT_DATABASE_CREATED_CONDITION, DEFAULT_USER_CREATED_CONDITION,
 };
@@ -137,6 +138,9 @@ impl NeonBranch {
 
         // Ensure Deployment exists
         ensure_deployment(&client, &namespace, &name, self, &project).await?;
+
+        // Ensure Service exists
+        ensure_services(&client, &namespace, &name, self, &project).await?;
 
         // Check if Compute node is ready
         let compute_node_ready = is_compute_node_ready(&client, &namespace, &name).await?;

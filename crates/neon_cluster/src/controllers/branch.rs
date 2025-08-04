@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::resources::{NeonBranch, NeonProject};
 use crate::compute;
 use crate::util::branch_status::{BranchPhase, BranchStatusManager};
@@ -5,9 +7,9 @@ use crate::util::errors::{Error, Result, StdError};
 use crate::util::secrets::get_jwt_keys_from_secret;
 
 use k8s_openapi::api::apps::v1::Deployment;
-use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::api::core::v1::{ConfigMap, Service};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use kube::api::Api;
+use kube::api::{Api, Patch, PatchParams};
 use kube::Resource;
 use serde_json::json;
 use tracing::info;
@@ -82,23 +84,59 @@ pub async fn ensure_deployment(
     let deployments: Api<Deployment> = Api::namespaced(client.clone(), namespace);
     let deployment_name = format!("{}-compute-node", name);
 
-    if deployments.get(&deployment_name).await.is_err() {
-        let mut deployment = compute::create_compute_deployment(name, branch, project);
+    let mut deployment = compute::create_compute_deployment(name, branch, project);
 
-        // Set owner reference using controller_owner_ref
-        deployment.metadata.owner_references =
-            branch.controller_owner_ref(&()).map(|owner_ref| vec![owner_ref]);
+    // Set owner reference using controller_owner_ref
+    deployment.metadata.owner_references = branch.controller_owner_ref(&()).map(|owner_ref| vec![owner_ref]);
 
-        deployments
-            .create(&Default::default(), &deployment)
-            .await
-            .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+    let patch_params = PatchParams::apply("neon-operator").force();
+    let patch = Patch::Apply(&deployment);
 
-        info!("Created Deployment: {}", deployment_name);
-        return Ok(());
-    }
+    deployments
+        .patch(&deployment_name, &patch_params, &patch)
+        .await
+        .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 
-    info!("Deployment already exists: {}", deployment_name);
+    info!("Applied Deployment: {}", deployment_name);
+
+    Ok(())
+}
+
+pub async fn ensure_services(
+    client: &kube::Client,
+    namespace: &str,
+    name: &str,
+    branch: &NeonBranch,
+    project: &NeonProject,
+) -> Result<()> {
+    let services: Api<Service> = Api::namespaced(client.clone(), namespace);
+
+    // Create admin service (HTTP, port 3081)
+    let admin_service = compute::create_admin_service(name, branch, project);
+    let admin_service_name = format!("{}-admin", name);
+
+    let patch_params = PatchParams::apply("neon-operator").force();
+    let patch = Patch::Apply(&admin_service);
+
+    services
+        .patch(&admin_service_name, &patch_params, &patch)
+        .await
+        .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+
+    info!("Applied admin Service: {}", admin_service_name);
+
+    // Create postgres service (TCP, port 55433)
+    let postgres_service = compute::create_postgres_service(name, branch, project);
+    let postgres_service_name = format!("{}-postgres", name);
+
+    let patch = Patch::Apply(&postgres_service);
+
+    services
+        .patch(&postgres_service_name, &patch_params, &patch)
+        .await
+        .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
+
+    info!("Applied postgres Service: {}", postgres_service_name);
 
     Ok(())
 }

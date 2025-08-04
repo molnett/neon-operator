@@ -1,4 +1,4 @@
-use e2e_tests::{cleanup_all_test_clusters, wait_for_condition, TestEnv};
+use e2e_tests::{cleanup_all_test_clusters, validate_postgres_connectivity, wait_for_condition, TestEnv};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{api::PostParams, Api};
 use neon_cluster::controllers::resources::{
@@ -134,6 +134,30 @@ async fn test_branch_creation() {
         // Verify branch has status
         let updated_branch = api.get("test-branch").await.unwrap();
         assert!(updated_branch.status.is_some(), "Branch should have status");
+
+        // Port forward to Postgres and validate connectivity with retries
+        let mut retry_count = 0;
+        let max_retries = 5;
+        let retry_delay = Duration::from_secs(10);
+        
+        loop {
+            match validate_postgres_connectivity(&env, "test-branch").await {
+                Ok(_) => {
+                    tracing::info!("PostgreSQL connectivity validated successfully");
+                    break;
+                }
+                Err(e) => {
+                    retry_count += 1;
+                    if retry_count >= max_retries {
+                        tracing::error!("Failed to validate PostgreSQL connectivity after {} retries: {}", max_retries, e);
+                        panic!("PostgreSQL connectivity validation failed: {}", e);
+                    }
+                    tracing::warn!("PostgreSQL connectivity validation failed (attempt {}/{}): {}. Retrying in {:?}...", 
+                                 retry_count, max_retries, e, retry_delay);
+                    tokio::time::sleep(retry_delay).await;
+                }
+            }
+        }
 
         tracing::info!("✅ Branch creation test passed");
     }

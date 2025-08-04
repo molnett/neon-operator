@@ -320,3 +320,84 @@ where
         .await
         .map_err(|e| e.into())
 }
+
+/// Validate Postgres connectivity by executing a SELECT 1 query in the compute pod
+pub async fn validate_postgres_connectivity(
+    env: &TestEnv,
+    branch_name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use k8s_openapi::api::core::v1::Pod;
+    use kube::{api::AttachParams, Api};
+    use std::time::Duration;
+    use tokio::io::{AsyncReadExt, BufReader};
+
+    tracing::info!("Validating Postgres connectivity for branch: {}", branch_name);
+
+    // Find the compute pod for this branch
+    let pods: Api<Pod> = Api::namespaced(env.client.clone(), &env.namespace);
+    let pod_list = pods
+        .list(&kube::api::ListParams {
+            label_selector: Some(format!("app={}-compute-node", branch_name)),
+            ..Default::default()
+        })
+        .await?;
+
+    let compute_pod = pod_list
+        .items
+        .iter()
+        .find(|pod| pod.metadata.name.as_ref().unwrap().contains("compute"))
+        .ok_or("No compute pod found for branch")?;
+
+    let pod_name = compute_pod.metadata.name.as_ref().unwrap();
+    tracing::info!("Found compute pod: {}", pod_name);
+
+    // Execute psql command with quiet flags to get clean output
+    let mut attached = pods
+        .exec(
+            pod_name,
+            vec![
+                "psql",
+                "-qtAX", // quiet, tuples only, unaligned - makes output just "1"
+                "-h",
+                "localhost",
+                "-p",
+                "55433",
+                "-U",
+                "cloud_admin",
+                "-d",
+                "postgres",
+                "-c",
+                "SELECT 1;",
+            ],
+            &AttachParams::default().stdout(true).stderr(true),
+        )
+        .await?;
+
+    // Simple approach: read both streams to completion
+    let (mut stdout_output, mut stderr_output) = (String::new(), String::new());
+
+    tokio::time::timeout(Duration::from_secs(15), async {
+        let stdout = attached.stdout().expect("stdout should be available");
+        let stderr = attached.stderr().expect("stderr should be available");
+        let mut outreader = BufReader::new(stdout);
+        let mut errreader = BufReader::new(stderr);
+        tokio::try_join!(
+            outreader.read_to_string(&mut stdout_output),
+            errreader.read_to_string(&mut stderr_output),
+        )
+    })
+    .await??;
+
+    let combined_output = format!("{}{}", stdout_output, stderr_output);
+    tracing::info!("psql output: '{}'", combined_output.trim());
+
+    // With -qtAX flags, successful output should just be "1"
+    if combined_output.trim() == "1" {
+        tracing::info!("✅ Postgres connectivity validated - SELECT 1 successful");
+        Ok(())
+    } else if combined_output.trim().is_empty() {
+        Err("No output from psql command - connection may have failed".into())
+    } else {
+        Err(format!("Unexpected psql output: '{}'", combined_output.trim()).into())
+    }
+}

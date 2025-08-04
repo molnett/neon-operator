@@ -1,6 +1,6 @@
 use crate::controllers::resources::NeonCluster;
 use crate::util::errors::{Error, Result, StdError};
-use crate::util::jwt_keys::{self, Ed25519KeyPair};
+use crate::util::jwt_keys::Ed25519KeyPair;
 use k8s_openapi::api::core::v1::Secret;
 use kube::{api::Api, ResourceExt};
 

@@ -1,7 +1,7 @@
 use super::resources::*;
 use crate::controllers::{pageserver, safekeeper, storage_broker, storage_controller};
 use crate::util::cluster_status::{ClusterPhase, ClusterStatusManager};
-use crate::util::{errors, errors::Result, metrics, telemetry};
+use crate::util::{errors, errors::Result, metrics};
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use k8s_openapi::api::{
@@ -243,10 +243,7 @@ pub struct Context {
     pub metrics: metrics::Metrics,
 }
 
-#[instrument(skip(ctx, neon_cluster), fields(trace_id))]
 pub async fn reconcile(neon_cluster: Arc<NeonCluster>, ctx: Arc<Context>) -> Result<Action> {
-    let trace_id = telemetry::get_trace_id();
-    Span::current().record("trace_id", field::display(&trace_id));
     let _timer = ctx.metrics.count_and_measure("cluster");
     ctx.diagnostics.write().await.last_event = Utc::now();
 

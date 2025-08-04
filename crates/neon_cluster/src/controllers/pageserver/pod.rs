@@ -3,7 +3,7 @@ use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 
 use k8s_openapi::api::core::v1::{
     ConfigMapVolumeSource, Container, ContainerPort, EnvVar, EnvVarSource, PersistentVolumeClaim,
-    PersistentVolumeClaimSpec, Pod, PodSecurityContext, PodSpec, SecretKeySelector, SecurityContext, Volume,
+    PersistentVolumeClaimSpec, Pod, PodSecurityContext, PodSpec, SecretKeySelector, Volume,
     VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;

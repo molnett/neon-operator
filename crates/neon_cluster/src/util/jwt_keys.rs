@@ -1,5 +1,4 @@
 use crate::util::errors::{Error, Result, StdError};
-use actix_web::http::header::Encoding;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use chrono::{Duration, Utc};
 use ed25519_dalek::{pkcs8, SigningKey, VerifyingKey};
@@ -9,7 +8,6 @@ use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
-use tracing::instrument::WithSubscriber;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JwtClaims {

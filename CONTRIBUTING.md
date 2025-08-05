@@ -1,6 +1,36 @@
 # Contributing to Neon Kubernetes Operator
-
 Thank you for your interest in contributing to the Neon Kubernetes Operator! This document provides guidelines and best practices for contributing to the project.
+
+## General Contributing Guidelines
+
+### Before Contributing
+
+1. Open an issue to discuss your proposed changes
+2. Ensure all tests pass locally: `just test-unit && just test-e2e`
+3. Run linting and formatting: `just fmt`
+4. Add tests for new functionality
+5. Update documentation as needed
+
+### Code Style
+
+- Follow existing code patterns and conventions
+- Use the project's error types from `util/errors.rs`
+- Add comprehensive error handling for all external interactions
+- Write clear, descriptive error messages
+- Include unit tests for error conditions
+
+### Testing
+
+- Add unit tests for new functionality
+- Include error case testing
+- Run the full test suite before submitting PRs
+- Test against a real Kubernetes cluster when possible
+
+## Getting Help
+
+- Open an issue for questions about contributing
+- Check existing issues and PRs for similar work
+- Review the project's architecture documentation in `CLAUDE.md`
 
 ## Error Handling Guidelines
 
@@ -54,100 +84,28 @@ buffer.try_reserve(additional_capacity).unwrap(); // OOM should crash
 
 ### When to Avoid `.unwrap()` ❌
 
-#### 1. Kubernetes API Interactions
-Always handle Kubernetes API errors properly:
+#### 1. External API Operations
+Always handle external API calls with proper error handling rather than using `.unwrap()`.
 
-```rust
-// ❌ Bad - can crash the controller
-let pods = client.list::<Pod>(&params).await.unwrap();
+#### 2. User Input Validation
+User-provided specifications should be validated and return appropriate error messages when invalid.
 
-// ✅ Good - proper error handling
-let pods = client.list::<Pod>(&params).await
-    .map_err(|e| StdError::KubeError(e))?;
-```
+#### 3. Network Operations
+Network calls can fail in various ways and should include timeout handling and retry logic where appropriate.
 
-#### 2. CRD Spec Processing
-User-provided specifications can be invalid:
+#### 4. File and I/O Operations
+File operations can fail due to permissions, disk space, or other system-level issues.
 
-```rust
-// ❌ Bad - user input can be malformed
-let database_name = cluster.spec.database.name.unwrap();
-
-// ✅ Good - validate user input
-let database_name = cluster.spec.database.name
-    .ok_or_else(|| StdError::InvalidArgument("database.name is required".to_string()))?;
-```
-
-#### 3. External HTTP Requests
-Network operations can fail in many ways:
-
-```rust
-// ❌ Bad - network calls can fail
-let response = http_client.get(url).await.unwrap();
-
-// ✅ Good - handle network errors
-let response = http_client.get(url).await
-    .map_err(|e| StdError::HttpError(format!("Failed to fetch {}: {}", url, e)))?;
-```
-
-#### 4. File I/O Operations
-File operations can fail due to permissions, disk space, etc.:
-
-```rust
-// ❌ Bad - file operations can fail
-let config = fs::read_to_string(path).unwrap();
-
-// ✅ Good - handle I/O errors
-let config = fs::read_to_string(path)
-    .map_err(|e| StdError::DecodingError(format!("Failed to read config: {}", e)))?;
-```
-
-#### 5. Metadata Access in Controllers
-Kubernetes metadata can be missing or malformed:
-
-```rust
-// ❌ Bad - metadata might not exist
-let namespace = cluster.metadata.namespace.unwrap();
-
-// ✅ Good - handle missing metadata
-let namespace = cluster.metadata.namespace
-    .ok_or_else(|| StdError::MetadataMissing("namespace is required".to_string()))?;
-```
+#### 5. Resource Metadata Access
+Kubernetes resource metadata might be missing or malformed and should be validated before use.
 
 ### Controller-Specific Patterns
 
 #### Error Propagation in Reconcile Functions
-Controller reconcile functions should return `Result<Action<()>, Error>`:
-
-```rust
-async fn reconcile_cluster(cluster: Arc<NeonCluster>, ctx: Arc<Context>) -> Result<Action<()>, Error> {
-    let name = cluster.metadata.name
-        .ok_or_else(|| StdError::MetadataMissing("cluster name is required".to_string()))?;
-    
-    let namespace = cluster.metadata.namespace
-        .ok_or_else(|| StdError::MetadataMissing("cluster namespace is required".to_string()))?;
-    
-    // Use proper error handling for all Kubernetes operations
-    let existing_pods = ctx.client
-        .list::<Pod>(&ListParams::default().labels(&format!("cluster={}", name)))
-        .await
-        .map_err(StdError::KubeError)?;
-    
-    // Return appropriate requeue behavior
-    Ok(Action::requeue(Duration::from_secs(30)))
-}
-```
+Controller reconcile functions should return `Result<Action<()>, Error>` and handle all external operations with proper error propagation.
 
 #### Status Updates
-Always handle status update failures gracefully:
-
-```rust
-// ✅ Good - handle status update errors
-if let Err(e) = update_cluster_status(&client, &cluster, status).await {
-    warn!("Failed to update cluster status: {}", e);
-    // Continue processing - status updates shouldn't break reconciliation
-}
-```
+Status update failures should be handled gracefully and not interrupt the main reconciliation loop.
 
 ### Common Error Types
 
@@ -158,54 +116,3 @@ The project provides these error types in `util/errors.rs`:
 - `StdError::MetadataMissing` - For missing required metadata
 - `StdError::HttpError` - For external HTTP request failures
 - `StdError::DecodingError` - For parsing/deserialization failures
-
-### Migration Strategy
-
-When converting existing `.unwrap()` calls:
-
-1. **Identify the error type** - What can actually go wrong?
-2. **Choose appropriate error handling** - Should it be logged, returned, or crash?
-3. **Add context** - Include relevant information in error messages
-4. **Test failure cases** - Ensure error paths work correctly
-
-### Automated Enforcement
-
-The project uses Clippy to warn about `.unwrap()` usage:
-
-```toml
-[workspace.lints.clippy]
-unwrap_used = { level = "warn", priority = 1 }
-```
-
-This helps catch problematic unwrap usage during development while allowing them in test code where appropriate.
-
-## General Contributing Guidelines
-
-### Before Contributing
-
-1. Open an issue to discuss your proposed changes
-2. Ensure all tests pass locally: `just test-unit && just test-integration`
-3. Run linting and formatting: `just fmt`
-4. Add tests for new functionality
-5. Update documentation as needed
-
-### Code Style
-
-- Follow existing code patterns and conventions
-- Use the project's error types from `util/errors.rs`
-- Add comprehensive error handling for all external interactions
-- Write clear, descriptive error messages
-- Include unit tests for error conditions
-
-### Testing
-
-- Add unit tests for new functionality
-- Include error case testing
-- Run the full test suite before submitting PRs
-- Test against a real Kubernetes cluster when possible
-
-## Getting Help
-
-- Open an issue for questions about contributing
-- Check existing issues and PRs for similar work
-- Review the project's architecture documentation in `CLAUDE.md`

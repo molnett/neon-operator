@@ -1,6 +1,6 @@
 # Neon Kubernetes Operator
 
-A Kubernetes operator for managing self-hosted [Neon](https://neon.com) database clusters. This operator implements Neon's core architecture with separated compute and storage, enabling you to run Neon's serverless Postgres platform on Kubernetes (in cloud and on-premises).
+A Kubernetes operator for managing self-hosted [Neon](https://neon.com) Postgres database clusters. This operator enables you to manage all necessary compoents of Neon's control plane on Kubernetes (in cloud and on-premises).
 
 ## Project Status
 

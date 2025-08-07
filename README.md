@@ -2,6 +2,8 @@
 
 A Kubernetes operator for managing self-hosted [Neon](https://neon.com) Postgres database clusters. This operator enables you to manage all necessary compoents of Neon's control plane on Kubernetes (in cloud and on-premises).
 
+*This product isn't affiliated with or endorsed by Neon in any way.*
+
 ## Project Status
 
 This operator is functional for development and testing environments. It implements Neon's core architecture components and provides basic cluster management capabilities. We are currently working on Day 1 and Day 2 operations, which means performance is not yet optimized.

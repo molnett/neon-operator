@@ -1,4 +1,4 @@
-use super::resources::*;
+use crate::api::v1::neonproject::{NeonProject, NEON_PROJECT_FINALIZER};
 use crate::util::errors::{Error, StdError};
 use crate::util::project_status::{ProjectPhase, ProjectStatusManager};
 use crate::util::{errors, errors::Result, metrics};

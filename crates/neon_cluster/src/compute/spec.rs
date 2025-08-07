@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use crate::controllers::resources::{NeonBranch, NeonProject};
+use crate::api::v1::neonbranch::NeonBranch;
+use crate::api::v1::neonproject::NeonProject;
 use crate::storage_controller::client::StorageControllerClient;
 use crate::util::errors::{Error, Result, StdError};
 use crate::util::secrets::get_jwt_keys_from_secret;

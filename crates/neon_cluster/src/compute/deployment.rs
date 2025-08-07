@@ -1,4 +1,3 @@
-use crate::controllers::resources::{NeonBranch, NeonProject};
 use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec};
 use k8s_openapi::api::core::v1::{
     Container, ContainerPort, EnvVar, PodSecurityContext, PodSpec, PodTemplateSpec, Volume, VolumeMount,
@@ -6,6 +5,9 @@ use k8s_openapi::api::core::v1::{
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta};
 use std::collections::BTreeMap;
+
+use crate::api::v1::neonbranch::NeonBranch;
+use crate::api::v1::neonproject::NeonProject;
 
 pub fn create_compute_deployment(name: &str, branch: &NeonBranch, project: &NeonProject) -> Deployment {
     let deployment_name = format!("{}-compute-node", name);

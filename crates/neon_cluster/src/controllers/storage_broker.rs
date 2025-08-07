@@ -1,9 +1,8 @@
 use crate::{
+    api::v1::neoncluster::NeonCluster,
     controllers::cluster_controller::Context,
     util::errors::{self, Error, ErrorWithRequeue, Result, StdError},
 };
-
-use super::resources::*;
 
 use k8s_openapi::{
     api::{

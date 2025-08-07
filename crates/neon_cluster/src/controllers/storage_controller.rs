@@ -15,7 +15,8 @@ use kube::{
 use tracing::info;
 
 use crate::{
-    controllers::{cluster_controller::Context, resources::NeonCluster},
+    api::v1::neoncluster::NeonCluster,
+    controllers::cluster_controller::Context,
     util::errors::{self, Error, ErrorWithRequeue, Result, StdError},
 };
 

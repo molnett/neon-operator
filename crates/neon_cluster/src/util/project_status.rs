@@ -6,7 +6,7 @@ use serde_json::json;
 use std::fmt;
 use tracing::info;
 
-use crate::controllers::resources::NeonProject;
+use crate::api::v1::neonproject::NeonProject;
 use crate::util::errors::{Error, Result, StdError};
 use crate::util::status::set_status_condition;
 
@@ -49,7 +49,7 @@ pub enum StatusReason {
     InProgress,
     Completed,
     Failed,
-    
+
     // Project-specific reasons
     TenantCreating,
     TenantCreated,
@@ -94,10 +94,13 @@ impl<'a> ProjectStatusManager<'a> {
         let api: Api<NeonProject> = Api::namespaced(self.client.clone(), &namespace);
 
         // Get current status to preserve existing conditions
-        let current_project = api.get(&name).await
+        let current_project = api
+            .get(&name)
+            .await
             .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 
-        let current_conditions = current_project.status
+        let current_conditions = current_project
+            .status
             .as_ref()
             .map_or_else(Vec::new, |s| s.conditions.clone());
 
@@ -115,7 +118,7 @@ impl<'a> ProjectStatusManager<'a> {
         }));
 
         let patch_params = PatchParams::apply(STATUS_FIELD_MANAGER);
-        
+
         api.patch_status(&name, &patch_params, &patch)
             .await
             .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
@@ -132,12 +135,8 @@ impl<'a> ProjectStatusManager<'a> {
             ("False", StatusReason::InProgress, "Project is not ready")
         };
 
-        self.set_condition(
-            PROJECT_READY_CONDITION,
-            status,
-            reason,
-            message,
-        ).await
+        self.set_condition(PROJECT_READY_CONDITION, status, reason, message)
+            .await
     }
 
     /// Sets the tenant created condition
@@ -145,15 +144,15 @@ impl<'a> ProjectStatusManager<'a> {
         let (status, reason, message) = if created {
             ("True", StatusReason::TenantCreated, "Tenant created successfully")
         } else {
-            ("False", StatusReason::TenantCreating, "Tenant creation in progress")
+            (
+                "False",
+                StatusReason::TenantCreating,
+                "Tenant creation in progress",
+            )
         };
 
-        self.set_condition(
-            TENANT_CREATED_CONDITION,
-            status,
-            reason,
-            message,
-        ).await
+        self.set_condition(TENANT_CREATED_CONDITION, status, reason, message)
+            .await
     }
 
     /// Sets the tenant creation failed condition
@@ -163,23 +162,28 @@ impl<'a> ProjectStatusManager<'a> {
             "False",
             StatusReason::TenantFailed,
             error_message,
-        ).await
+        )
+        .await
     }
 
     /// Sets the pageserver configured condition
     pub async fn set_pageserver_configured(&self, configured: bool) -> Result<()> {
         let (status, reason, message) = if configured {
-            ("True", StatusReason::PageServerConfigured, "PageServer tenant configured successfully")
+            (
+                "True",
+                StatusReason::PageServerConfigured,
+                "PageServer tenant configured successfully",
+            )
         } else {
-            ("False", StatusReason::PageServerUnavailable, "PageServer not available or configuration failed")
+            (
+                "False",
+                StatusReason::PageServerUnavailable,
+                "PageServer not available or configuration failed",
+            )
         };
 
-        self.set_condition(
-            PAGESERVER_CONFIGURED_CONDITION,
-            status,
-            reason,
-            message,
-        ).await
+        self.set_condition(PAGESERVER_CONFIGURED_CONDITION, status, reason, message)
+            .await
     }
 
     /// Helper method to set a condition
@@ -195,10 +199,13 @@ impl<'a> ProjectStatusManager<'a> {
         let api: Api<NeonProject> = Api::namespaced(self.client.clone(), &namespace);
 
         // Get current status
-        let current_project = api.get(&name).await
+        let current_project = api
+            .get(&name)
+            .await
             .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 
-        let current_conditions = current_project.status
+        let current_conditions = current_project
+            .status
             .as_ref()
             .map_or_else(Vec::new, |s| s.conditions.clone());
 
@@ -216,9 +223,7 @@ impl<'a> ProjectStatusManager<'a> {
         let (new_conditions, _changed) = set_status_condition(&current_conditions, new_condition);
 
         // Preserve existing phase
-        let current_phase = current_project.status
-            .as_ref()
-            .and_then(|s| s.phase.clone());
+        let current_phase = current_project.status.as_ref().and_then(|s| s.phase.clone());
 
         let patch = Patch::Apply(json!({
             "apiVersion": "oltp.molnett.org/v1",
@@ -234,12 +239,15 @@ impl<'a> ProjectStatusManager<'a> {
         }));
 
         let patch_params = PatchParams::apply(STATUS_FIELD_MANAGER);
-        
+
         api.patch_status(&name, &patch_params, &patch)
             .await
             .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 
-        info!("Updated project {} condition {} to {}", name, condition_type, status);
+        info!(
+            "Updated project {} condition {} to {}",
+            name, condition_type, status
+        );
         Ok(())
     }
 }

@@ -5,7 +5,7 @@ use serde_json::json;
 use std::fmt;
 use tracing::info;
 
-use crate::controllers::resources::NeonBranch;
+use crate::api::v1::neonbranch::NeonBranch;
 use crate::util::errors::{Error, Result, StdError};
 use crate::util::status::set_status_condition;
 

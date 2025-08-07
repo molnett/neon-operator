@@ -1,5 +1,7 @@
-use crate::controllers::resources::{NeonBranch, NeonCluster, NeonProject};
-use crate::util::errors::Error;
+use crate::{
+    api::v1::{neonbranch::NeonBranch, neoncluster::NeonCluster, neonproject::NeonProject},
+    util::errors::Error,
+};
 use kube::ResourceExt;
 use prometheus::{histogram_opts, opts, HistogramVec, IntCounter, IntCounterVec, Registry};
 use tokio::time::Instant;

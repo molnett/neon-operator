@@ -1,7 +1,9 @@
 use super::branch::{
     create_default_database, ensure_deployment, get_or_create_default_user, is_compute_node_ready,
 };
-use super::resources::*;
+
+use crate::api::v1::neonbranch::{NeonBranch, NEON_BRANCH_FINALIZER};
+use crate::api::v1::neonproject::NeonProject;
 use crate::controllers::branch::ensure_services;
 use crate::util::branch_status::{
     BranchPhase, BranchStatusManager, DEFAULT_DATABASE_CREATED_CONDITION, DEFAULT_USER_CREATED_CONDITION,

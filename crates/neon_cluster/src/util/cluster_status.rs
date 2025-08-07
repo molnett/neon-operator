@@ -6,7 +6,7 @@ use serde_json::json;
 use std::fmt;
 use tracing::info;
 
-use crate::controllers::resources::NeonCluster;
+use crate::api::v1::neoncluster::NeonCluster;
 use crate::util::errors::{Error, Result, StdError};
 use crate::util::status::set_status_condition;
 
@@ -50,7 +50,7 @@ pub enum StatusReason {
     InProgress,
     Completed,
     Failed,
-    
+
     // Cluster-specific reasons
     ComponentsCreating,
     ComponentsReady,
@@ -91,10 +91,13 @@ impl<'a> ClusterStatusManager<'a> {
         let api: Api<NeonCluster> = Api::namespaced(self.client.clone(), &namespace);
 
         // Get current status to preserve existing conditions
-        let current_cluster = api.get(&name).await
+        let current_cluster = api
+            .get(&name)
+            .await
             .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 
-        let current_conditions = current_cluster.status
+        let current_conditions = current_cluster
+            .status
             .as_ref()
             .map_or_else(Vec::new, |s| s.conditions.clone());
 
@@ -112,7 +115,7 @@ impl<'a> ClusterStatusManager<'a> {
         }));
 
         let patch_params = PatchParams::apply(STATUS_FIELD_MANAGER);
-        
+
         api.patch_status(&name, &patch_params, &patch)
             .await
             .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
@@ -124,17 +127,21 @@ impl<'a> ClusterStatusManager<'a> {
     /// Sets the cluster ready condition
     pub async fn set_cluster_ready(&self, ready: bool) -> Result<()> {
         let (status, reason, message) = if ready {
-            ("True", StatusReason::ComponentsReady, "All cluster components are ready")
+            (
+                "True",
+                StatusReason::ComponentsReady,
+                "All cluster components are ready",
+            )
         } else {
-            ("False", StatusReason::ComponentsCreating, "Cluster components are not ready")
+            (
+                "False",
+                StatusReason::ComponentsCreating,
+                "Cluster components are not ready",
+            )
         };
 
-        self.set_condition(
-            CLUSTER_READY_CONDITION,
-            status,
-            reason,
-            message,
-        ).await
+        self.set_condition(CLUSTER_READY_CONDITION, status, reason, message)
+            .await
     }
 
     /// Sets the pageserver ready condition
@@ -145,12 +152,8 @@ impl<'a> ClusterStatusManager<'a> {
             ("False", StatusReason::InProgress, "PageServer is not ready")
         };
 
-        self.set_condition(
-            PAGESERVER_READY_CONDITION,
-            status,
-            reason,
-            message,
-        ).await
+        self.set_condition(PAGESERVER_READY_CONDITION, status, reason, message)
+            .await
     }
 
     /// Sets the safekeeper ready condition
@@ -161,12 +164,8 @@ impl<'a> ClusterStatusManager<'a> {
             ("False", StatusReason::InProgress, "SafeKeeper is not ready")
         };
 
-        self.set_condition(
-            SAFEKEEPER_READY_CONDITION,
-            status,
-            reason,
-            message,
-        ).await
+        self.set_condition(SAFEKEEPER_READY_CONDITION, status, reason, message)
+            .await
     }
 
     /// Sets the storage broker ready condition
@@ -177,12 +176,8 @@ impl<'a> ClusterStatusManager<'a> {
             ("False", StatusReason::InProgress, "StorageBroker is not ready")
         };
 
-        self.set_condition(
-            STORAGE_BROKER_READY_CONDITION,
-            status,
-            reason,
-            message,
-        ).await
+        self.set_condition(STORAGE_BROKER_READY_CONDITION, status, reason, message)
+            .await
     }
 
     /// Helper method to set a condition
@@ -198,10 +193,13 @@ impl<'a> ClusterStatusManager<'a> {
         let api: Api<NeonCluster> = Api::namespaced(self.client.clone(), &namespace);
 
         // Get current status
-        let current_cluster = api.get(&name).await
+        let current_cluster = api
+            .get(&name)
+            .await
             .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 
-        let current_conditions = current_cluster.status
+        let current_conditions = current_cluster
+            .status
             .as_ref()
             .map_or_else(Vec::new, |s| s.conditions.clone());
 
@@ -219,9 +217,7 @@ impl<'a> ClusterStatusManager<'a> {
         let (new_conditions, _changed) = set_status_condition(&current_conditions, new_condition);
 
         // Preserve existing phase
-        let current_phase = current_cluster.status
-            .as_ref()
-            .and_then(|s| s.phase.clone());
+        let current_phase = current_cluster.status.as_ref().and_then(|s| s.phase.clone());
 
         let patch = Patch::Apply(json!({
             "apiVersion": "oltp.molnett.org/v1",
@@ -237,12 +233,15 @@ impl<'a> ClusterStatusManager<'a> {
         }));
 
         let patch_params = PatchParams::apply(STATUS_FIELD_MANAGER);
-        
+
         api.patch_status(&name, &patch_params, &patch)
             .await
             .map_err(|e| Error::StdError(StdError::KubeError(e)))?;
 
-        info!("Updated cluster {} condition {} to {}", name, condition_type, status);
+        info!(
+            "Updated cluster {} condition {} to {}",
+            name, condition_type, status
+        );
         Ok(())
     }
 }

@@ -1,3 +1,4 @@
+use crate::api::v1::neoncluster::NeonCluster;
 use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 
 use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
@@ -20,7 +21,6 @@ use tokio::time::Duration;
 use tracing::info;
 
 use super::cluster_controller::Context;
-use super::resources::*;
 
 pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<Action> {
     let name = match &neon_cluster.metadata.name {

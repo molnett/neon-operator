@@ -1,6 +1,8 @@
 use super::project_controller::FIELD_MANAGER;
-use super::resources::{NeonProject, NeonProjectStatus};
-use crate::util::errors::{Error, Result, StdError};
+use crate::{
+    api::v1::neonproject::{NeonProject, NeonProjectStatus},
+    util::errors::{Error, Result, StdError},
+};
 
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{Condition, Time};
 use kube::api::{Api, Patch, PatchParams};

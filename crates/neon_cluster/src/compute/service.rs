@@ -4,7 +4,8 @@ use k8s_openapi::api::core::v1::{Service, ServicePort, ServiceSpec};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::Resource;
 
-use crate::controllers::resources::{NeonBranch, NeonProject};
+use crate::api::v1::neonbranch::NeonBranch;
+use crate::api::v1::neonproject::NeonProject;
 
 pub fn create_admin_service(name: &str, branch: &NeonBranch, project: &NeonProject) -> Service {
     let service_name = format!("{}-admin", name);

@@ -1,10 +1,9 @@
-use crate::controllers::resources::NeonCluster;
+use crate::api::v1::neoncluster::NeonCluster;
 use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 
 use k8s_openapi::api::core::v1::{
     ConfigMapVolumeSource, Container, ContainerPort, EnvVar, EnvVarSource, PersistentVolumeClaim,
-    PersistentVolumeClaimSpec, Pod, PodSecurityContext, PodSpec, SecretKeySelector, Volume,
-    VolumeMount,
+    PersistentVolumeClaimSpec, Pod, PodSecurityContext, PodSpec, SecretKeySelector, Volume, VolumeMount,
 };
 use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference};

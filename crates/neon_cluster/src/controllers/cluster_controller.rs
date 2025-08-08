@@ -1,4 +1,7 @@
-use super::resources::*;
+use crate::api::v1::neoncluster::{
+    NeonCluster, NeonClusterPageServerStatus, NeonClusterSafeKeeperStatus, NeonClusterStatus,
+    NeonClusterStorageBrokerStatus, NEON_CLUSTER_FINALIZER,
+};
 use crate::controllers::{pageserver, safekeeper, storage_broker, storage_controller};
 use crate::util::cluster_status::{ClusterPhase, ClusterStatusManager};
 use crate::util::{errors, errors::Result, metrics};

@@ -1,5 +1,5 @@
-use kube::CustomResourceExt;
-use neon_cluster::controllers::resources::{NeonBranch, NeonCluster, NeonProject};
+use kube::CustomResourceExt as _;
+use neon_cluster::api::v1::{neonbranch::NeonBranch, neoncluster::NeonCluster, neonproject::NeonProject};
 
 fn main() {
     print!("{}", serde_yaml::to_string(&NeonCluster::crd()).unwrap());

@@ -1,9 +1,11 @@
 use e2e_tests::{cleanup_all_test_clusters, validate_postgres_connectivity, wait_for_condition, TestEnv};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{api::PostParams, Api};
-use neon_cluster::controllers::resources::{
-    NeonBranch, NeonBranchSpec, NeonCluster, NeonClusterSpec, NeonProject, NeonProjectSpec, PGVersion,
-    StorageConfig,
+use neon_cluster::api::v1::{
+    neonbranch::{NeonBranch, NeonBranchSpec},
+    neoncluster::{NeonCluster, NeonClusterSpec, StorageConfig},
+    neonproject::{NeonProject, NeonProjectSpec},
+    PGVersion,
 };
 use serial_test::serial;
 use std::time::Duration;

@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use crate::api::v1::neoncluster::{NeonCluster, NeonClusterSpec, StorageConfig};
+    use crate::api::v1::PGVersion;
     use crate::controllers::cluster_controller::State;
-    use crate::controllers::resources::{NeonCluster, StorageConfig};
-    use crate::controllers::resources::{NeonClusterSpec, PGVersion};
 
     use k8s_openapi::api::apps::v1::Deployment;
     use kube::api::{Api, ObjectMeta, Patch, PatchParams};

@@ -1,4 +1,4 @@
-use crate::controllers::resources::NeonCluster;
+use crate::api::v1::neoncluster::NeonCluster;
 use crate::util::errors::{Error, Result, StdError};
 use crate::util::jwt_keys::Ed25519KeyPair;
 use k8s_openapi::api::core::v1::Secret;

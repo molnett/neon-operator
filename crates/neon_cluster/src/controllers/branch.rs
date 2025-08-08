@@ -1,5 +1,5 @@
-
-use super::resources::{NeonBranch, NeonProject};
+use crate::api::v1::neonbranch::NeonBranch;
+use crate::api::v1::neonproject::NeonProject;
 use crate::compute;
 use crate::util::branch_status::{BranchPhase, BranchStatusManager};
 use crate::util::errors::{Error, Result, StdError};

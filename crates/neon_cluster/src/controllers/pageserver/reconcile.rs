@@ -1,3 +1,4 @@
+use crate::api::v1::neoncluster::NeonCluster;
 use crate::util::errors::{Error, ErrorWithRequeue, Result, StdError};
 
 use k8s_openapi::api::core::v1::Pod;
@@ -13,7 +14,7 @@ use tokio::time::Duration;
 use tracing::info;
 
 use super::super::cluster_controller::Context;
-use super::super::resources::*;
+
 use super::{config, pod, service};
 
 pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<Action> {

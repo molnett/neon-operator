@@ -27,6 +27,13 @@ pub struct ComputeHookNotifyRequest {
     pub shards: Vec<ComputeHookNotifyRequestShard>,
 }
 
+/*
+ * The following types are vendored from the upstream neon repository
+ * https://github.com/neondatabase/neon/blob/main/libs/utils/src/shard.rs
+ *
+ * START
+ */
+
 #[derive(Eq, PartialEq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub struct ShardIndex {
     pub shard_number: u8,
@@ -156,6 +163,10 @@ pub struct PageserverShardConnectionInfo {
     pub libpq_url: Option<String>,
     pub grpc_url: Option<String>,
 }
+
+/*
+ * END
+ */
 
 pub async fn generate_compute_spec(
     client: &kube::Client,

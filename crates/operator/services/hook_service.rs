@@ -2,10 +2,7 @@ use std::collections::BTreeMap;
 
 use chrono::{self, Duration};
 use k8s_openapi::{
-    api::{
-        apps::v1::Deployment,
-        core::v1::Service,
-    },
+    api::{apps::v1::Deployment, core::v1::Service},
     serde_json::{self},
 };
 use kube::{
@@ -20,7 +17,6 @@ use neon_cluster::{
     util::secrets::get_key_pair_from_secret,
 };
 use tracing::{error, info};
-
 
 /// Service for processing compute hook notifications
 pub struct HookService {
@@ -155,12 +151,6 @@ impl HookService {
                 compute_name, service_namespace
             );
 
-            info!("Calling /configure endpoint at URL: {}", url);
-            info!(
-                "Spec JSON size: {} bytes",
-                serde_json::to_string(&spec_json).unwrap_or_default().len()
-            );
-
             let response = reqwest::Client::new()
                 .post(&url)
                 .json(&spec_json)
@@ -168,25 +158,19 @@ impl HookService {
                 .timeout(std::time::Duration::from_secs(2))
                 .send()
                 .await
-                .map_err(|e| {
-                    error!(
-                        "Failed to call /configure for service {} at URL {}: {:?}",
-                        service_name, url, e
-                    );
-                    format!("Failed to call /configure for service {}: {:?}", service_name, e)
-                })?;
+                .map_err(|e| format!("Failed to call /configure for service {}: {:?}", service_name, e))?;
 
             if !response.status().is_success() {
-                error!(
-                    "Failed to call /configure for service {}: {}",
+                let err_str = format!(
+                    "Failed to call /configure for service {}: {}. Response: {}",
                     service_name,
-                    response.status()
+                    response.status(),
+                    response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "No response".to_string())
                 );
-                return Err(format!(
-                    "Failed to call /configure for service {}: {}",
-                    service_name,
-                    response.status()
-                ));
+                return Err(err_str);
             }
         }
 

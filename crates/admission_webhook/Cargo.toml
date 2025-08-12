@@ -1,0 +1,31 @@
+[package]
+name = "admission_webhook"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "admission_webhook"
+path = "src/main.rs"
+
+[dependencies]
+axum = "0.7"
+axum-server = { version = "0.6", features = ["tls-rustls"] }
+tokio = { version = "1.0", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+thiserror = "1.0"
+rustls = "0.23"
+rustls-pemfile = "2.0"
+notify = "6.0"
+
+# Kubernetes dependencies
+kube = { version = "1.1.0", features = ["client", "derive", "runtime", "admission"] }
+k8s-openapi = { version = "0.25.0", features = ["latest"] }
+
+# Local dependencies
+neon_cluster = { path = "../neon_cluster" }

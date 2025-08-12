@@ -7,7 +7,7 @@ use crate::api::v1::{conditions_schema, PGVersion};
 
 pub static NEON_CLUSTER_FINALIZER: &str = "neon-cluster.oltp.molnett.org";
 
-#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, PartialEq)]
 pub struct StorageConfig {
     /// Storage class to use for persistent volume claims
     pub storage_class: Option<String>,

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: neon-admission-webhook
+  namespace: neon
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: neon-admission-webhook
+rules:
+  - apiGroups: ["oltp.molnett.org"]
+    resources: ["neonpageservers"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: neon-admission-webhook
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: neon-admission-webhook
+subjects:
+  - kind: ServiceAccount
+    name: neon-admission-webhook
+    namespace: neon

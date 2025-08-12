@@ -106,3 +106,24 @@ cleanup-e2e:
 # Clean up using cargo test (alternative method)
 cleanup-e2e-rust:
   cargo test --package e2e_tests --test basic_e2e cleanup_test_clusters -- --ignored --nocapture
+
+# Build admission webhook docker image
+build-admission-webhook:
+  #!/usr/bin/env bash
+  target_arch=$(just detect-arch)
+  target_platform=$(just detect-platform)
+  docker build -f crates/admission_webhook/Dockerfile --build-arg TARGETPLATFORM=$target_platform --platform $target_platform -t neon-admission-webhook:latest .
+
+# Install admission webhook (requires cert-manager)
+install-admission-webhook: build-admission-webhook
+  kubectl apply -f yaml/admission/rbac.yaml
+  kubectl apply -f yaml/admission/certificate.yaml
+  kubectl apply -f yaml/admission/deployment.yaml
+  kubectl apply -f yaml/admission/webhook.yaml
+
+# Uninstall admission webhook
+uninstall-admission-webhook:
+  kubectl delete -f yaml/admission/webhook.yaml --ignore-not-found
+  kubectl delete -f yaml/admission/deployment.yaml --ignore-not-found
+  kubectl delete -f yaml/admission/certificate.yaml --ignore-not-found
+  kubectl delete -f yaml/admission/rbac.yaml --ignore-not-found

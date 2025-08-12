@@ -5,6 +5,7 @@ members = [
     "crates/neon_cluster",
     "crates/operator",
     "crates/e2e_tests",
+    "crates/admission_webhook",
 ]
 
 [workspace.lints.clippy]

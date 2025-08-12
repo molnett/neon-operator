@@ -47,7 +47,7 @@ pub async fn reconcile(neon_cluster: &NeonCluster, ctx: Arc<Context>) -> Result<
             ..Default::default()
         });
 
-    reconcile_deployment(&ctx.client, &ns, &name, &oref).await?;
+    reconcile_deployment(&ctx.client, &ns, &name, &neon_cluster, &oref).await?;
     reconcile_service(&ctx.client, &ns, &name, &oref).await?;
 
     Ok(Action::requeue(Duration::from_secs(5 * 60)))
@@ -57,10 +57,11 @@ async fn reconcile_deployment(
     client: &Client,
     namespace: &str,
     name: &str,
+    neon_cluster: &NeonCluster,
     oref: &OwnerReference,
 ) -> Result<()> {
     let deployments: Api<Deployment> = Api::namespaced(client.clone(), namespace);
-    let desired_deployment = create_desired_deployment(namespace, name, oref);
+    let desired_deployment = create_desired_deployment(namespace, name, neon_cluster, oref);
 
     match deployments.get(name).await {
         Ok(existing) => {
@@ -129,7 +130,12 @@ async fn reconcile_service(
     Ok(())
 }
 
-fn create_desired_deployment(namespace: &str, name: &str, oref: &OwnerReference) -> Deployment {
+fn create_desired_deployment(
+    namespace: &str,
+    name: &str,
+    neon_cluster: &NeonCluster,
+    oref: &OwnerReference,
+) -> Deployment {
     let mut labels = BTreeMap::new();
     labels.insert("app.kubernetes.io/name".to_string(), name.to_string());
 
@@ -155,7 +161,7 @@ fn create_desired_deployment(namespace: &str, name: &str, oref: &OwnerReference)
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: "storage-broker".to_string(),
-                        image: Some("neondatabase/neon:7894".to_string()),
+                        image: Some(neon_cluster.spec.neon_image.clone()),
                         command: Some(vec!["/usr/local/bin/storage_broker".to_string()]),
                         args: Some(vec!["--listen-addr=0.0.0.0:50051".to_string()]),
                         ports: Some(vec![ContainerPort {

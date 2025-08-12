@@ -234,7 +234,7 @@ fn create_desired_statefulset(
                     }),
                     containers: vec![Container {
                         name: "safekeeper".to_string(),
-                        image: Some("neondatabase/neon:7894".to_string()),
+                        image: Some(neon_cluster.spec.neon_image.clone()),
                         command: Some(vec!["/bin/bash".to_string()]),
                         args: Some(vec!["-c".to_string(), safekeeper_command]),
                         ports: Some(vec![

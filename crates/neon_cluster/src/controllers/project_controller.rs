@@ -235,14 +235,14 @@ fn error_policy(neon_project: Arc<NeonProject>, error: &errors::Error, ctx: Arc<
 pub async fn run(state: State) {
     let client = Client::try_default().await.expect("failed to create kube Client");
 
-    let neonclusters = Api::<NeonProject>::all(client.clone());
-    if let Err(e) = neonclusters.list(&ListParams::default().limit(1)).await {
+    let neon_pageservers = Api::<NeonProject>::all(client.clone());
+    if let Err(e) = neon_pageservers.list(&ListParams::default().limit(1)).await {
         error!("CRD is not queryable; {e:?}. Is the CRD installed?");
         info!("Installation: cargo run --bin crdgen | kubectl apply -f -");
         std::process::exit(1);
     }
 
-    Controller::new(neonclusters, Config::default().any_semantic())
+    Controller::new(neon_pageservers, Config::default().any_semantic())
         .owns(Api::<Service>::all(client.clone()), watcher::Config::default())
         .owns(Api::<Deployment>::all(client.clone()), watcher::Config::default())
         .run(reconcile, error_policy, state.to_context(client))

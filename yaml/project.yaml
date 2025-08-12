@@ -6,6 +6,6 @@ spec:
   cluster_name: basic-cluster
   id: molnett-project
   name: molnett-project
-  pg_version: "PG16"
+  pg_version: "PG17"
   superuser_name: molnettt
   default_database_name: molnett

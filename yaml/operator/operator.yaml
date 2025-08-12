@@ -63,6 +63,9 @@ rules:
       - neonclusters
       - neonclusters/status
       - neonclusters/finalizers
+      - neonpageservers
+      - neonpageservers/status
+      - neonpageservers/finalizers
       - neonprojects
       - neonprojects/status
       - neonprojects/finalizers
@@ -126,13 +129,6 @@ spec:
         - name: operator
           image: molnett/neon-operator
           imagePullPolicy: Always
-          command:
-            - /app/operator
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
           resources:
             limits:
               cpu: 500m
@@ -140,6 +136,11 @@ spec:
             requests:
               cpu: 100m
               memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
 ---
 apiVersion: v1
 kind: Service

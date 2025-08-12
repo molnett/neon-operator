@@ -1,7 +1,7 @@
 pub mod branch;
 pub mod branch_controller;
 pub mod cluster_controller;
-pub mod pageserver;
+pub mod pageserver_controller;
 pub mod project;
 pub mod project_controller;
 pub mod safekeeper;

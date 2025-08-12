@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use crate::api::v1::neonbranch::NeonBranch;
 use crate::api::v1::neonproject::NeonProject;
+use crate::api::v1::NodeId;
 use crate::storage_controller::client::StorageControllerClient;
 use crate::util::errors::{Error, Result, StdError};
 use crate::util::secrets::get_jwt_keys_from_secret;
@@ -16,7 +17,7 @@ use tracing::{error, info};
 /// Shard information for compute hook notification
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ComputeHookNotifyRequestShard {
-    pub node_id: u64,
+    pub node_id: NodeId,
     pub shard_number: u32,
 }
 
@@ -159,7 +160,7 @@ pub struct PageserverShardInfo {
 
 #[derive(Clone, Debug, Deserialize, Serialize, Eq, PartialEq)]
 pub struct PageserverShardConnectionInfo {
-    pub id: Option<u32>,
+    pub id: Option<NodeId>,
     pub libpq_url: Option<String>,
     pub grpc_url: Option<String>,
 }
@@ -281,7 +282,7 @@ pub async fn generate_compute_spec(
                 .iter()
                 .enumerate()
                 .map(|(i, shard)| ComputeHookNotifyRequestShard {
-                    node_id: shard.node_attached,
+                    node_id: shard.clone().node_attached,
                     shard_number: i as u32,
                 })
                 .collect(),
@@ -297,10 +298,10 @@ pub async fn generate_compute_spec(
             },
             PageserverShardInfo {
                 pageservers: vec![PageserverShardConnectionInfo {
-                    id: Some(shard.node_id as u32),
+                    id: Some(shard.node_id.clone()),
                     libpq_url: Some(format!(
-                        "postgres://no_user@pageserver-{}.pageserver-{}-headless.neon:6400",
-                        shard.node_id, cluster_name
+                        "postgres://no_user@{}-pageserver-{}.neon:6400",
+                        cluster_name, shard.node_id
                     )),
                     grpc_url: None,
                 }],

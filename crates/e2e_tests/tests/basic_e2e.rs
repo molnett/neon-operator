@@ -1,11 +1,17 @@
 use e2e_tests::{cleanup_all_test_clusters, validate_postgres_connectivity, wait_for_condition, TestEnv};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{api::PostParams, Api};
-use neon_cluster::api::v1::{
-    neonbranch::{NeonBranch, NeonBranchSpec},
-    neoncluster::{NeonCluster, NeonClusterSpec, StorageConfig},
-    neonproject::{NeonProject, NeonProjectSpec},
-    PGVersion,
+use neon_cluster::{
+    api::{
+        v1::{
+            neonbranch::{NeonBranch, NeonBranchSpec},
+            neoncluster::{NeonCluster, NeonClusterSpec, StorageConfig},
+            neonproject::{NeonProject, NeonProjectSpec},
+            NodeId, PGVersion,
+        },
+        v1alpha1::neonpageserver::{NeonPageserver, NeonPageserverSpec},
+    },
+    util::pageserver_status::PAGESERVER_READY_CONDITION,
 };
 use serial_test::serial;
 use std::time::Duration;
@@ -216,7 +222,7 @@ async fn create_jwt_keys_secret(env: &TestEnv) -> Result<(), Box<dyn std::error:
 
     let secret = Secret {
         metadata: ObjectMeta {
-            name: Some("test-cluster-jwt-keys".to_string()),
+            name: Some(format!("{}-jwt-keys", env.cluster_name.clone())),
             namespace: Some(env.namespace.clone()),
             ..Default::default()
         },
@@ -422,22 +428,17 @@ async fn create_test_cluster(env: &TestEnv) {
 
     let cluster = NeonCluster {
         metadata: ObjectMeta {
-            name: Some("test-cluster".to_string()),
+            name: Some(env.cluster_name.clone()),
             namespace: Some(env.namespace.clone()),
             ..Default::default()
         },
         spec: NeonClusterSpec {
-            num_pageservers: 3,
             storage_controller_database_url:
                 "postgres://postgres:password@storage-controller-postgres:5432/storage_controller".to_string(),
             num_safekeepers: 3,
             default_pg_version: PGVersion::PG16,
             neon_image: "neondatabase/neon:latest".to_string(),
             bucket_credentials_secret: "test-bucket-creds".to_string(),
-            pageserver_storage: StorageConfig {
-                storage_class: None,
-                size: "1Gi".to_string(),
-            },
             safekeeper_storage: StorageConfig {
                 storage_class: None,
                 size: "1Gi".to_string(),
@@ -452,14 +453,50 @@ async fn create_test_cluster(env: &TestEnv) {
     wait_for_cluster_status(
         &env.client,
         &env.namespace,
-        "test-cluster",
+        env.cluster_name.clone().as_str(),
         Duration::from_secs(180),
     )
     .await
     .unwrap();
 
+    create_test_pageserver(env).await;
+
     // Give the cluster a moment to stabilize after all components are deployed
     tokio::time::sleep(Duration::from_secs(5)).await;
+}
+
+async fn create_test_pageserver(env: &TestEnv) {
+    let pageserver = NeonPageserver {
+        metadata: ObjectMeta {
+            name: Some("test-pageserver".to_string()),
+            namespace: Some(env.namespace.clone()),
+            ..Default::default()
+        },
+        spec: NeonPageserverSpec {
+            cluster: env.cluster_name.clone(),
+            id: NodeId(0),
+            storage_config: StorageConfig {
+                storage_class: None,
+                size: "1Gi".to_string(),
+            },
+            bucket_credentials_secret: "test-bucket-creds".to_string(),
+        },
+        status: None,
+    };
+
+    let api: Api<NeonPageserver> = Api::namespaced(env.client.clone(), &env.namespace);
+    let pageserver = api.create(&PostParams::default(), &pageserver).await.unwrap();
+
+    wait_for_condition::<NeonPageserver>(
+        &env.client,
+        &env.namespace,
+        pageserver.metadata.name.unwrap().clone().as_str(),
+        PAGESERVER_READY_CONDITION,
+        "True",
+        Duration::from_secs(120),
+    )
+    .await
+    .unwrap();
 }
 
 async fn create_test_project(env: &TestEnv) -> String {
@@ -472,7 +509,7 @@ async fn create_test_project(env: &TestEnv) -> String {
             ..Default::default()
         },
         spec: NeonProjectSpec {
-            cluster_name: "test-cluster".to_string(),
+            cluster_name: env.cluster_name.clone(),
             id: project_id.clone(),
             name: "Test Project".to_string(),
             tenant_id: None,

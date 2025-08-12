@@ -1,0 +1,21 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: neon-admission-webhook-issuer
+  namespace: neon
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: neon-admission-webhook-cert
+  namespace: neon
+spec:
+  secretName: neon-admission-webhook-cert
+  dnsNames:
+    - neon-admission-webhook.neon.svc
+    - neon-admission-webhook.neon.svc.cluster.local
+  issuerRef:
+    name: neon-admission-webhook-issuer
+    kind: Issuer

@@ -8,6 +8,21 @@ pub mod neonbranch;
 pub mod neoncluster;
 pub mod neonproject;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct NodeId(pub u64);
+
+impl Default for NodeId {
+    fn default() -> Self {
+        NodeId(0)
+    }
+}
+
+impl Display for NodeId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 #[derive(Default, Deserialize, Serialize, Clone, Debug, JsonSchema)]
 pub enum PGVersion {
     PG14 = 14,

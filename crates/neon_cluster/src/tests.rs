@@ -23,15 +23,10 @@ mod tests {
             },
             spec: NeonClusterSpec {
                 num_safekeepers: 3,
-                num_pageservers: 3,
                 default_pg_version: PGVersion::PG16,
                 neon_image: "neondatabase/neon:latest".to_string(),
                 bucket_credentials_secret: "neon-bucket-credentials".to_string(),
                 storage_controller_database_url: "storage-controller-pg-cluster".to_string(),
-                pageserver_storage: StorageConfig {
-                    storage_class: None,
-                    size: "1Gi".to_string(),
-                },
                 safekeeper_storage: StorageConfig {
                     storage_class: None,
                     size: "500Mi".to_string(),

@@ -33,34 +33,16 @@ spec:
                 - PG14
                 - PG15
                 - PG16
+                - PG17
                 type: string
               neon_image:
                 default: neondatabase/neon:6351-bookworm
                 type: string
-              num_pageservers:
-                default: 1
-                format: int32
-                type: integer
               num_safekeepers:
                 default: 3
                 format: uint8
                 minimum: 0.0
                 type: integer
-              pageserver_storage:
-                default:
-                  size: 10Gi
-                  storage_class: null
-                description: Storage configuration for pageserver persistent volumes
-                properties:
-                  size:
-                    default: 10Gi
-                    description: Size of the persistent volume
-                    type: string
-                  storage_class:
-                    description: Storage class to use for persistent volume claims
-                    nullable: true
-                    type: string
-                type: object
               safekeeper_storage:
                 default:
                   size: 10Gi
@@ -115,22 +97,6 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              page_server_status:
-                description: The status object of `NeonCluster` PageServer component
-                properties:
-                  ready:
-                    type: boolean
-                  ready_replicas:
-                    format: int32
-                    nullable: true
-                    type: integer
-                  replicas:
-                    format: int32
-                    nullable: true
-                    type: integer
-                required:
-                - ready
-                type: object
               phase:
                 nullable: true
                 type: string
@@ -168,13 +134,109 @@ spec:
                 type: object
             required:
             - conditions
-            - page_server_status
             - safekeeper_status
             - storage_broker_status
             type: object
         required:
         - spec
         title: NeonCluster
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: neonpageservers.oltp.molnett.org
+spec:
+  group: oltp.molnett.org
+  names:
+    categories: []
+    kind: NeonPageserver
+    plural: neonpageservers
+    shortNames:
+    - neonpageserver
+    singular: neonpageserver
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns: []
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for NeonPageserverSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              bucket_credentials_secret:
+                type: string
+              cluster:
+                type: string
+              id:
+                format: uint64
+                minimum: 0.0
+                type: integer
+              storage_config:
+                default:
+                  size: 10Gi
+                  storage_class: null
+                properties:
+                  size:
+                    default: 10Gi
+                    description: Size of the persistent volume
+                    type: string
+                  storage_class:
+                    description: Storage class to use for persistent volume claims
+                    nullable: true
+                    type: string
+                type: object
+            required:
+            - bucket_credentials_secret
+            - cluster
+            - id
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      default: 0
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              phase:
+                nullable: true
+                type: string
+            required:
+            - conditions
+            type: object
+        required:
+        - spec
+        title: NeonPageserver
         type: object
     served: true
     storage: true
@@ -215,6 +277,7 @@ spec:
                 - PG14
                 - PG15
                 - PG16
+                - PG17
                 type: string
               project_id:
                 type: string
@@ -315,6 +378,7 @@ spec:
                 - PG14
                 - PG15
                 - PG16
+                - PG17
                 type: string
               superuser_name:
                 type: string

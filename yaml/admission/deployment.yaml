@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neon-admission-webhook
+  namespace: neon
+  labels:
+    app: neon-admission-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neon-admission-webhook
+  template:
+    metadata:
+      labels:
+        app: neon-admission-webhook
+    spec:
+      serviceAccountName: neon-admission-webhook
+      containers:
+        - name: webhook
+          image: neon-admission-webhook:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8443
+              name: webhook
+              protocol: TCP
+            - containerPort: 8080
+              name: health
+              protocol: TCP
+          env:
+            - name: RUST_LOG
+              value: "info,admission_webhook=debug"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: cert
+              mountPath: /etc/certs
+              readOnly: true
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+      volumes:
+        - name: cert
+          secret:
+            secretName: neon-admission-webhook-cert
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: neon-admission-webhook
+  namespace: neon
+  labels:
+    app: neon-admission-webhook
+spec:
+  selector:
+    app: neon-admission-webhook
+  ports:
+    - name: webhook
+      port: 443
+      targetPort: 8443
+      protocol: TCP
+    - name: health
+      port: 8080
+      targetPort: 8080
+      protocol: TCP

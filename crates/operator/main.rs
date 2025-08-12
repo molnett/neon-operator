@@ -10,11 +10,13 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize Kubernetes controller state
     let state = controllers::cluster_controller::State::default();
+    let pageserver_state = controllers::pageserver_controller::State::default();
     let project_state = controllers::project_controller::State::default();
     let branch_state = controllers::branch_controller::State::default();
 
     // Start controllers
     let neon_cluster_controller = controllers::cluster_controller::run(state.clone());
+    let neon_pageserver_controller = controllers::pageserver_controller::run(pageserver_state.clone());
     let neon_project_controller = controllers::project_controller::run(project_state.clone());
     let neon_branch_controller = controllers::branch_controller::run(branch_state.clone());
 
@@ -24,10 +26,11 @@ async fn main() -> anyhow::Result<()> {
     // Both runtimes implement graceful shutdown, so poll until both are done
     tokio::join!(
         neon_cluster_controller,
+        neon_pageserver_controller,
         neon_project_controller,
         neon_branch_controller,
         web_server
     )
-    .3?;
+    .4?;
     Ok(())
 }

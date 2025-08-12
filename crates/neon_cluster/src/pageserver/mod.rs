@@ -1,7 +1,7 @@
 use k8s_openapi::api::apps::v1::StatefulSet;
 
 pub mod config;
-pub mod pod;
+pub mod deployment;
 pub mod reconcile;
 pub mod service;
 

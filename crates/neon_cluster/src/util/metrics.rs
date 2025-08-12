@@ -1,3 +1,4 @@
+use crate::api::v1alpha1::neonpageserver::NeonPageserver;
 use crate::{
     api::v1::{neonbranch::NeonBranch, neoncluster::NeonCluster, neonproject::NeonProject},
     util::errors::Error,
@@ -74,6 +75,16 @@ impl Metrics {
         );
         self.failures
             .with_label_values(&[neon_project.name_any().as_ref(), e.metric_label().as_ref()])
+            .inc()
+    }
+
+    pub fn reconcile_pageserver_failure(&self, neon_pageserver: &NeonPageserver, e: &Error) {
+        println!(
+            "reconcile_pageserver_failure: {:?}",
+            &[neon_pageserver.name_any(), e.metric_label()]
+        );
+        self.failures
+            .with_label_values(&[neon_pageserver.name_any().as_ref(), e.metric_label().as_ref()])
             .inc()
     }
 

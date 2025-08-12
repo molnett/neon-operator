@@ -3,6 +3,7 @@ pub mod cluster_status;
 pub mod errors;
 pub mod jwt_keys;
 pub mod metrics;
+pub mod pageserver_status;
 pub mod project_status;
 pub mod secrets;
 pub mod status;

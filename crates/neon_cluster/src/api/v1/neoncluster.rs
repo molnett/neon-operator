@@ -39,8 +39,6 @@ impl Default for StorageConfig {
 pub struct NeonClusterSpec {
     #[serde(default = "default_num_safekeepers")]
     pub num_safekeepers: u8,
-    #[serde(default = "default_num_pageservers")]
-    pub num_pageservers: i32,
     #[serde(default = "default_pg_version")]
     pub default_pg_version: PGVersion,
     #[serde(default = "default_neon_image")]
@@ -49,9 +47,6 @@ pub struct NeonClusterSpec {
     pub bucket_credentials_secret: String,
     pub storage_controller_database_url: String,
 
-    /// Storage configuration for pageserver persistent volumes
-    #[serde(default)]
-    pub pageserver_storage: StorageConfig,
     /// Storage configuration for safekeeper persistent volumes
     #[serde(default)]
     pub safekeeper_storage: StorageConfig,
@@ -59,9 +54,6 @@ pub struct NeonClusterSpec {
 
 fn default_num_safekeepers() -> u8 {
     3
-}
-fn default_num_pageservers() -> i32 {
-    1
 }
 fn default_pg_version() -> PGVersion {
     PGVersion::PG16
@@ -76,17 +68,8 @@ pub struct NeonClusterStatus {
     #[schemars(schema_with = "conditions_schema")]
     pub conditions: Vec<Condition>,
     pub phase: Option<String>,
-    pub page_server_status: NeonClusterPageServerStatus,
     pub storage_broker_status: NeonClusterStorageBrokerStatus,
     pub safekeeper_status: NeonClusterSafeKeeperStatus,
-}
-
-/// The status object of `NeonCluster` PageServer component
-#[derive(Deserialize, Serialize, Clone, Default, Debug, JsonSchema)]
-pub struct NeonClusterPageServerStatus {
-    pub ready: bool,
-    pub replicas: Option<i32>,
-    pub ready_replicas: Option<i32>,
 }
 
 /// The status object of `NeonCluster` StorageBroker component

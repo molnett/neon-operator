@@ -385,6 +385,7 @@ impl ParallelSetupOrchestrator {
             "neonclusters.oltp.molnett.org",
             "neonprojects.oltp.molnett.org",
             "neonbranches.oltp.molnett.org",
+            "neonpageservers.oltp.molnett.org",
         ];
 
         let waiter = SmartWaiter::with_config("crd_establishment", BackoffConfig::fast());
@@ -522,6 +523,9 @@ rules:
   - neonclusters
   - neonclusters/status
   - neonclusters/finalizers
+  - neonpageservers
+  - neonpageservers/status
+  - neonpageservers/finalizers
   - neonprojects
   - neonprojects/status
   - neonprojects/finalizers

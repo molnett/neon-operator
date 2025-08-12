@@ -1,8 +1,8 @@
 use crate::api::v1::neoncluster::{
-    NeonCluster, NeonClusterPageServerStatus, NeonClusterSafeKeeperStatus, NeonClusterStatus,
-    NeonClusterStorageBrokerStatus, NEON_CLUSTER_FINALIZER,
+    NeonCluster, NeonClusterSafeKeeperStatus, NeonClusterStatus, NeonClusterStorageBrokerStatus,
+    NEON_CLUSTER_FINALIZER,
 };
-use crate::controllers::{pageserver, safekeeper, storage_broker, storage_controller};
+use crate::controllers::{safekeeper, storage_broker, storage_controller};
 use crate::util::cluster_status::{ClusterPhase, ClusterStatusManager};
 use crate::util::{errors, errors::Result, metrics};
 use chrono::{DateTime, Utc};
@@ -50,7 +50,6 @@ impl NeonCluster {
                 "status": NeonClusterStatus {
                     conditions: Vec::new(),
                     phase: Some(ClusterPhase::Pending.to_string()),
-                    page_server_status: NeonClusterPageServerStatus::default(),
                     storage_broker_status: NeonClusterStorageBrokerStatus::default(),
                     safekeeper_status: NeonClusterSafeKeeperStatus::default(),
                 }
@@ -101,18 +100,6 @@ impl NeonCluster {
 
         // then reconcile safekeeper
         match safekeeper::reconcile(self, ctx.clone()).await {
-            Ok(_) => (),
-            Err(e) => {
-                error!("failed to reconcile safekeeper: {}", e);
-                match e {
-                    errors::Error::ErrorWithRequeue(error) => return Ok(Action::requeue(error.duration)),
-                    _ => return Err(e),
-                }
-            }
-        }
-
-        // then reconcile pageserver
-        match pageserver::reconcile(self, ctx.clone()).await {
             Ok(_) => (),
             Err(e) => {
                 error!("failed to reconcile safekeeper: {}", e);

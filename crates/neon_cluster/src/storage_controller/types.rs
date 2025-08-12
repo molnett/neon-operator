@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+use crate::api::v1::NodeId;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TenantShardInfo {
     pub tenant_shard_id: String,
-    pub node_attached: u64,
+    pub node_attached: NodeId,
     #[serde(default)]
-    pub node_secondary: Vec<u64>,
+    pub node_secondary: Vec<NodeId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
     #[serde(default)]

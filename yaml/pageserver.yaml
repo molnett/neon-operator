@@ -1,0 +1,48 @@
+---
+kind: NeonPageserver
+apiVersion: oltp.molnett.org/v1alpha1
+metadata:
+  name: basic-cluster-pageserver-1
+  namespace: neon
+spec:
+  id: 1
+  cluster: basic-cluster
+  bucket_credentials_secret: tigris-bucket
+  storage_config:
+    size: 20Gi # Optional: storage size (default: 10Gi)
+---
+kind: NeonPageserver
+apiVersion: oltp.molnett.org/v1alpha1
+metadata:
+  name: basic-cluster-pageserver-2
+  namespace: neon
+spec:
+  id: 2
+  cluster: basic-cluster
+  bucket_credentials_secret: tigris-bucket
+  storage_config:
+    size: 2Gi # Optional: storage size (default: 10Gi)
+---
+kind: NeonPageserver
+apiVersion: oltp.molnett.org/v1alpha1
+metadata:
+  name: basic-cluster-pageserver-3
+  namespace: neon
+spec:
+  id: 3
+  cluster: basic-cluster
+  bucket_credentials_secret: tigris-bucket
+  storage_config:
+    size: 2Gi # Optional: storage size (default: 10Gi)
+---
+kind: NeonPageserver
+apiVersion: oltp.molnett.org/v1alpha1
+metadata:
+  name: basic-cluster-pageserver-4
+  namespace: neon
+spec:
+  id: 4
+  cluster: basic-cluster
+  bucket_credentials_secret: tigris-bucket
+  storage_config:
+    size: 2Gi # Optional: storage size (default: 10Gi)

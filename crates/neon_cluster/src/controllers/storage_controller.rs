@@ -158,7 +158,7 @@ fn desired_deployment_spec(
                 spec: Some(PodSpec {
                     containers: vec![Container {
                         name: "neon-storage".to_string(),
-                        image: Some("neondatabase/neon:7894".to_string()),
+                        image: Some(cluster.spec.neon_image.clone()),
                         command: Some(vec!["storage_controller".to_string()]),
                         args: Some(
                             vec![

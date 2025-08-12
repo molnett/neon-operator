@@ -343,7 +343,7 @@ fn create_pageserver_pod_spec(
             }]),
             containers: vec![Container {
                 name: "pageserver".to_string(),
-                image: Some("neondatabase/neon:7894".to_string()),
+                image: Some(neon_cluster.spec.neon_image.clone()),
                 image_pull_policy: Some("Always".to_string()),
                 command: Some(vec!["/usr/local/bin/pageserver".to_string()]),
                 ports: Some(vec![

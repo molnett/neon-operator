@@ -77,6 +77,26 @@ type ProjectList struct {
 	Items           []Project `json:"items"`
 }
 
+// GetConditions returns the conditions for the project status
+func (p *ProjectStatus) GetConditions() []metav1.Condition {
+	return p.Conditions
+}
+
+// SetConditions sets the conditions for the project status
+func (p *ProjectStatus) SetConditions(conditions []metav1.Condition) {
+	p.Conditions = conditions
+}
+
+// GetPhase returns the phase for the project status
+func (p *ProjectStatus) GetPhase() string {
+	return p.Phase
+}
+
+// SetPhase sets the phase for the project status
+func (p *ProjectStatus) SetPhase(phase string) {
+	p.Phase = phase
+}
+
 func init() {
 	SchemeBuilder.Register(&Project{}, &ProjectList{})
 }

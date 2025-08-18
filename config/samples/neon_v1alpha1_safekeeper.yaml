@@ -1,0 +1,41 @@
+apiVersion: neon.oltp.molnett.org/v1alpha1
+kind: Safekeeper
+metadata:
+  labels:
+    app.kubernetes.io/name: neon-operator-go
+    app.kubernetes.io/managed-by: kustomize
+  name: safekeeper-sample-0
+  namespace: neon
+spec:
+  cluster: cluster-sample
+  id: 0
+  storageConfig:
+    size: 10Gi
+---
+apiVersion: neon.oltp.molnett.org/v1alpha1
+kind: Safekeeper
+metadata:
+  labels:
+    app.kubernetes.io/name: neon-operator-go
+    app.kubernetes.io/managed-by: kustomize
+  name: safekeeper-sample-1
+  namespace: neon
+spec:
+  cluster: cluster-sample
+  id: 1
+  storageConfig:
+    size: 10Gi
+---
+apiVersion: neon.oltp.molnett.org/v1alpha1
+kind: Safekeeper
+metadata:
+  labels:
+    app.kubernetes.io/name: neon-operator-go
+    app.kubernetes.io/managed-by: kustomize
+  name: safekeeper-sample-2
+  namespace: neon
+spec:
+  cluster: cluster-sample
+  id: 2
+  storageConfig:
+    size: 10Gi

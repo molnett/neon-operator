@@ -5,6 +5,8 @@ resources:
 - bases/neon.oltp.molnett.org_clusters.yaml
 - bases/neon.oltp.molnett.org_branches.yaml
 - bases/neon.oltp.molnett.org_projects.yaml
+- bases/neon.oltp.molnett.org_pageservers.yaml
+- bases/neon.oltp.molnett.org_safekeepers.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:

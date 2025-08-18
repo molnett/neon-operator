@@ -21,16 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type StorageConfig struct {
-	// Name of the storage class to use for PVCs.
-	// +optional
-	StorageClass *string `json:"storageClass,omitempty"`
-
-	// Size of the PVCs.
-	// kubebuilder:default:=10Gi
-	Size string `json:"size"`
-}
-
 // ClusterSpec defines the desired state of Cluster
 type ClusterSpec struct {
 	// Decides how many safekeepers to run in the cluster.
@@ -106,6 +96,26 @@ type ClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitzero"`
 	Items           []Cluster `json:"items"`
+}
+
+// GetConditions returns the conditions for the cluster status
+func (c *ClusterStatus) GetConditions() []metav1.Condition {
+	return c.Conditions
+}
+
+// SetConditions sets the conditions for the cluster status
+func (c *ClusterStatus) SetConditions(conditions []metav1.Condition) {
+	c.Conditions = conditions
+}
+
+// GetPhase returns the phase for the cluster status
+func (c *ClusterStatus) GetPhase() string {
+	return c.Phase
+}
+
+// SetPhase sets the phase for the cluster status
+func (c *ClusterStatus) SetPhase(phase string) {
+	c.Phase = phase
 }
 
 func init() {

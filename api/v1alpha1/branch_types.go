@@ -75,6 +75,26 @@ type BranchList struct {
 	Items           []Branch `json:"items"`
 }
 
+// GetConditions returns the conditions for the branch status
+func (b *BranchStatus) GetConditions() []metav1.Condition {
+	return b.Conditions
+}
+
+// SetConditions sets the conditions for the branch status
+func (b *BranchStatus) SetConditions(conditions []metav1.Condition) {
+	b.Conditions = conditions
+}
+
+// GetPhase returns the phase for the branch status
+func (b *BranchStatus) GetPhase() string {
+	return b.Phase
+}
+
+// SetPhase sets the phase for the branch status
+func (b *BranchStatus) SetPhase(phase string) {
+	b.Phase = phase
+}
+
 func init() {
 	SchemeBuilder.Register(&Branch{}, &BranchList{})
 }

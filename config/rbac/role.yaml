@@ -5,11 +5,27 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  - pods
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - neon.oltp.molnett.org
   resources:
   - branches
   - clusters
+  - pageservers
   - projects
+  - safekeepers
   verbs:
   - create
   - delete
@@ -23,7 +39,9 @@ rules:
   resources:
   - branches/finalizers
   - clusters/finalizers
+  - pageservers/finalizers
   - projects/finalizers
+  - safekeepers/finalizers
   verbs:
   - update
 - apiGroups:
@@ -31,7 +49,9 @@ rules:
   resources:
   - branches/status
   - clusters/status
+  - pageservers/status
   - projects/status
+  - safekeepers/status
   verbs:
   - get
   - patch

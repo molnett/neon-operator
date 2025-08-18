@@ -28,63 +28,164 @@ import (
 	neonv1alpha1 "oltp.molnett.org/neon-operator/api/v1alpha1"
 )
 
-// SetPhases updates the cluster status using provided functions
-func SetPhases(ctx context.Context, c client.Client, cluster *neonv1alpha1.Cluster, statusfns ...func(cluster *neonv1alpha1.Cluster)) error {
+// StatusWithConditions defines the interface for status objects that have Conditions and Phase
+type StatusWithConditions interface {
+	GetConditions() []metav1.Condition
+	SetConditions([]metav1.Condition)
+	GetPhase() string
+	SetPhase(string)
+}
+
+// SetPhases updates the resource status using provided functions
+func SetPhases[T client.Object](ctx context.Context, c client.Client, obj T, statusfns ...func(T)) error {
 	log := logf.FromContext(ctx)
 
-	log.Info("Setting cluster phases")
+	log.Info("Setting resource phases")
 
-	originalCluster := cluster.DeepCopy()
+	original := obj.DeepCopyObject().(T)
 
-	var currentCluster neonv1alpha1.Cluster
-	if err := c.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, &currentCluster); err != nil {
-		log.Info("Error getting cluster", "error", err)
+	current := obj.DeepCopyObject().(T)
+	if err := c.Get(ctx, types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, current); err != nil {
+		log.Info("Error getting resource", "error", err)
 		return err
 	}
 
-	updatedCluster := currentCluster.DeepCopy()
+	updated := current.DeepCopyObject().(T)
 
 	for _, statusfn := range statusfns {
-		statusfn(updatedCluster)
+		statusfn(updated)
 	}
 
-	if equality.Semantic.DeepEqual(originalCluster.Status, updatedCluster.Status) {
-		log.Info("Cluster status unchanged")
+	originalStatus := getOriginalStatusForComparison(original)
+	updatedStatus := getOriginalStatusForComparison(updated)
+
+	if equality.Semantic.DeepEqual(originalStatus, updatedStatus) {
+		log.Info("Resource status unchanged")
 		return nil
 	}
 
-	if err := c.Status().Patch(ctx, updatedCluster, client.MergeFromWithOptions(&currentCluster, client.MergeFromWithOptimisticLock{})); err != nil {
-		log.Error(err, "error while updating cluster status")
+	if err := c.Status().Patch(ctx, updated, client.MergeFromWithOptions(current, client.MergeFromWithOptimisticLock{})); err != nil {
+		log.Error(err, "error while updating resource status")
 		return err
 	}
 
-	cluster.Status = updatedCluster.Status
+	copyUpdatedStatus(obj, updated)
 
 	return nil
 }
 
-// SetClusterCreatingStatus sets the cluster to creating phase with Ready condition false
-func SetClusterCreatingStatus(c *neonv1alpha1.Cluster) {
-	c.Status.Phase = neonv1alpha1.ClusterPhaseCreating
-	c.Status.Conditions = updateCondition(c.Status.Conditions, metav1.Condition{
+// getOriginalStatusForComparison extracts status for comparison
+func getOriginalStatusForComparison(obj client.Object) any {
+	switch v := obj.(type) {
+	case *neonv1alpha1.Cluster:
+		return v.Status
+	case *neonv1alpha1.Project:
+		return v.Status
+	case *neonv1alpha1.Branch:
+		return v.Status
+	case *neonv1alpha1.Safekeeper:
+		return v.Status
+	case *neonv1alpha1.Pageserver:
+		return v.Status
+	default:
+		return nil
+	}
+}
+
+// copyUpdatedStatus copies the status from updated object to the original
+func copyUpdatedStatus(original client.Object, updated client.Object) {
+	switch orig := original.(type) {
+	case *neonv1alpha1.Cluster:
+		if upd, ok := updated.(*neonv1alpha1.Cluster); ok {
+			orig.Status = upd.Status
+		}
+	case *neonv1alpha1.Project:
+		if upd, ok := updated.(*neonv1alpha1.Project); ok {
+			orig.Status = upd.Status
+		}
+	case *neonv1alpha1.Branch:
+		if upd, ok := updated.(*neonv1alpha1.Branch); ok {
+			orig.Status = upd.Status
+		}
+	case *neonv1alpha1.Safekeeper:
+		if upd, ok := updated.(*neonv1alpha1.Safekeeper); ok {
+			orig.Status = upd.Status
+		}
+	case *neonv1alpha1.Pageserver:
+		if upd, ok := updated.(*neonv1alpha1.Pageserver); ok {
+			orig.Status = upd.Status
+		}
+	}
+}
+
+// getObjectStatus extracts the status from any of our CRD objects
+func getObjectStatus(obj client.Object) StatusWithConditions {
+	switch v := obj.(type) {
+	case *neonv1alpha1.Cluster:
+		return &v.Status
+	case *neonv1alpha1.Project:
+		return &v.Status
+	case *neonv1alpha1.Branch:
+		return &v.Status
+	case *neonv1alpha1.Safekeeper:
+		return &v.Status
+	case *neonv1alpha1.Pageserver:
+		return &v.Status
+	default:
+		return nil
+	}
+}
+
+// SetPhase sets a generic creating phase with Ready condition false
+func SetPhase[T client.Object](obj T, phase string) {
+	status := getObjectStatus(obj)
+	status.SetPhase(phase)
+	status.SetConditions(updateCondition(status.GetConditions(), metav1.Condition{
 		Type:               "Ready",
 		Status:             metav1.ConditionFalse,
-		Reason:             "ClusterIsNotReady",
-		Message:            "Cluster Is Not Ready",
+		Reason:             "ResourceIsNotReady",
+		Message:            "Resource Is Not Ready",
 		LastTransitionTime: metav1.Now(),
-	})
+	}))
+
+}
+
+// SetError sets a generic error phase with Ready condition false and error message
+func SetError[T client.Object](obj T, phase, reason, message string) {
+	status := getObjectStatus(obj)
+	status.SetPhase(phase)
+	status.SetConditions(updateCondition(status.GetConditions(), metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionFalse,
+		Reason:             reason,
+		Message:            message,
+		LastTransitionTime: metav1.Now(),
+	}))
+}
+
+// SetClusterCreatingStatus sets the cluster to creating phase with Ready condition false
+func SetClusterCreatingStatus(c *neonv1alpha1.Cluster) {
+	SetPhase(c, neonv1alpha1.ClusterPhaseCreating)
 }
 
 // SetClusterCannotCreateResourcesStatus sets the cluster to cannot create resources phase with Ready condition false
 func SetClusterCannotCreateResourcesStatus(c *neonv1alpha1.Cluster) {
-	c.Status.Phase = neonv1alpha1.ClusterPhaseCannotCreateClusterResources
-	c.Status.Conditions = updateCondition(c.Status.Conditions, metav1.Condition{
-		Type:               "Ready",
-		Status:             metav1.ConditionFalse,
-		Reason:             "ClusterIsNotReady",
-		Message:            "Cluster Is Not Ready",
-		LastTransitionTime: metav1.Now(),
-	})
+	SetError(c, neonv1alpha1.ClusterPhaseCannotCreateClusterResources, "ClusterIsNotReady", "Cluster Is Not Ready")
+}
+
+// SetSafekeeperCreatingStatus sets the safekeeper to creating phase with Ready condition false
+func SetSafekeeperCreatingStatus(sk *neonv1alpha1.Safekeeper) {
+	SetPhase(sk, neonv1alpha1.SafekeeperPhaseCreating)
+}
+
+// SetSafekeeperInvalidSpecStatus sets the safekeeper to cannot create resources phase with Ready condition false
+func SetSafekeeperInvalidSpecStatus(c *neonv1alpha1.Safekeeper) {
+	SetError(c, neonv1alpha1.SafekeeperPhaseInvalidSpec, "SafekeeperIsNotReady", "Safekeeper Is Not Ready")
+}
+
+// SetSafekeeperCannotCreateResourcesStatus sets the cluster to cannot create resources phase with Ready condition false
+func SetSafekeeperCannotCreateResourcesStatus(c *neonv1alpha1.Safekeeper) {
+	SetError(c, neonv1alpha1.SafekeeperPhaseCannotCreateResources, "SafekeeperIsNotReady", "Safekeeper Is Not Ready")
 }
 
 // updateCondition updates or adds a condition to the conditions slice

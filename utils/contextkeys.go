@@ -3,5 +3,6 @@ package utils
 type contextKey string
 
 const (
-	ClusterNameKey contextKey = "cluster"
+	ClusterNameKey    contextKey = "cluster"
+	SafekeeperNameKey contextKey = "safekeeper"
 )

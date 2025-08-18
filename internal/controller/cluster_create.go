@@ -129,6 +129,10 @@ func (r *ClusterReconciler) reconcileStorageBroker(ctx context.Context, cluster 
 		return err
 	}
 
+	if err := r.reconcileStorageBrokerService(ctx, cluster); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -260,6 +264,49 @@ func (r *ClusterReconciler) reconcileStorageBrokerDeployment(ctx context.Context
 			return fmt.Errorf("failed to update storage broker deployment: %w", err)
 		}
 		log.Info("Storage broker deployment updated", "name", cluster.Name)
+		return nil
+	}
+
+	return nil
+}
+
+func (r *ClusterReconciler) reconcileStorageBrokerService(ctx context.Context, cluster *neonv1alpha1.Cluster) error {
+	log := logf.FromContext(ctx)
+
+	intendedService := storagebroker.Service(cluster)
+
+	var currentService corev1.Service
+	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: cluster.Namespace}, &currentService)
+	if getErr != nil && !apierrors.IsNotFound(getErr) {
+		return fmt.Errorf("failed to get storage controller service: %w", getErr)
+	}
+
+	err := ctrl.SetControllerReference(cluster, intendedService, r.Scheme)
+	if err != nil {
+		return fmt.Errorf("failed to set controller reference for storage controller service: %w", err)
+	}
+
+	// If service does not exist, create it
+	if apierrors.IsNotFound(getErr) {
+		if err := r.Client.Create(ctx, intendedService, &client.CreateOptions{
+			FieldManager: utils.FieldManager,
+		}); err != nil {
+			return fmt.Errorf("failed to create storage controller service: %w", err)
+		}
+		log.Info("Storage controller service created", "name", cluster.Name)
+		return nil
+	}
+
+	// Use DeepDerivative with correct order: intended is subset of current
+	if !equality.Semantic.DeepDerivative(intendedService.Spec, currentService.Spec) {
+		// At this point, the service exists and needs to be updated
+		if err := r.Client.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
+			Force:        ptr.To(true),
+			FieldManager: utils.FieldManager,
+		}); err != nil {
+			return fmt.Errorf("failed to update storage controller service: %w", err)
+		}
+		log.Info("Storage controller service updated", "name", cluster.Name)
 		return nil
 	}
 

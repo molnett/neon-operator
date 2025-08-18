@@ -3,4 +3,6 @@ resources:
 - neon_v1alpha1_cluster.yaml
 - neon_v1alpha1_branch.yaml
 - neon_v1alpha1_project.yaml
+- neon_v1alpha1_pageserver.yaml
+- neon_v1alpha1_safekeeper.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

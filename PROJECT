@@ -36,4 +36,22 @@ resources:
   kind: Project
   path: oltp.molnett.org/neon-operator/api/v1alpha1
   version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: oltp.molnett.org
+  group: neon
+  kind: Pageserver
+  path: oltp.molnett.org/neon-operator/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: oltp.molnett.org
+  group: neon
+  kind: Safekeeper
+  path: oltp.molnett.org/neon-operator/api/v1alpha1
+  version: v1alpha1
 version: "3"

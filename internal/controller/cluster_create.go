@@ -21,6 +21,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	neonv1alpha1 "oltp.molnett.org/neon-operator/api/v1alpha1"
+	"oltp.molnett.org/neon-operator/specs/storagebroker"
 	"oltp.molnett.org/neon-operator/specs/storagecontroller"
 	"oltp.molnett.org/neon-operator/utils"
 )
@@ -37,6 +38,12 @@ func (r *ClusterReconciler) createClusterResources(ctx context.Context, cluster 
 	log.Info("Reconciling storage controller")
 
 	if err := r.reconcileStorageController(ctx, cluster); err != nil {
+		return err
+	}
+
+	log.Info("Reconciling storage broker")
+
+	if err := r.reconcileStorageBroker(ctx, cluster); err != nil {
 		return err
 	}
 
@@ -111,6 +118,14 @@ func (r *ClusterReconciler) reconcileStorageController(ctx context.Context, clus
 	}
 
 	if err := r.reconcileStorageControllerService(ctx, cluster); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *ClusterReconciler) reconcileStorageBroker(ctx context.Context, cluster *neonv1alpha1.Cluster) error {
+	if err := r.reconcileStorageBrokerDeployment(ctx, cluster); err != nil {
 		return err
 	}
 
@@ -202,6 +217,49 @@ func (r *ClusterReconciler) reconcileStorageControllerService(ctx context.Contex
 			return fmt.Errorf("failed to update storage controller service: %w", err)
 		}
 		log.Info("Storage controller service updated", "name", cluster.Name)
+		return nil
+	}
+
+	return nil
+}
+
+func (r *ClusterReconciler) reconcileStorageBrokerDeployment(ctx context.Context, cluster *neonv1alpha1.Cluster) error {
+	log := logf.FromContext(ctx)
+
+	intendedDeployment := storagebroker.Deployment(cluster)
+
+	var currentDeployment appsv1.Deployment
+	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedDeployment.Name, Namespace: cluster.Namespace}, &currentDeployment)
+	if getErr != nil && !apierrors.IsNotFound(getErr) {
+		return fmt.Errorf("failed to get storage broker deployment: %w", getErr)
+	}
+
+	err := ctrl.SetControllerReference(cluster, intendedDeployment, r.Scheme)
+	if err != nil {
+		return fmt.Errorf("failed to set controller reference for storage broker deployment: %w", err)
+	}
+
+	// If deployment does not exist, create it
+	if apierrors.IsNotFound(getErr) {
+		if err := r.Client.Create(ctx, intendedDeployment, &client.CreateOptions{
+			FieldManager: utils.FieldManager,
+		}); err != nil {
+			return fmt.Errorf("failed to create storage broker deployment: %w", err)
+		}
+		log.Info("Storage broker deployment created", "name", cluster.Name)
+		return nil
+	}
+
+	// If deployment exists, check if it needs to be updated
+	if !equality.Semantic.DeepDerivative(intendedDeployment.Spec, currentDeployment.Spec) {
+		// At this point, the deployment exists and needs to be updated
+		if err := r.Client.Patch(ctx, intendedDeployment, client.Apply, &client.PatchOptions{
+			Force:        ptr.To(true),
+			FieldManager: utils.FieldManager,
+		}); err != nil {
+			return fmt.Errorf("failed to update storage broker deployment: %w", err)
+		}
+		log.Info("Storage broker deployment updated", "name", cluster.Name)
 		return nil
 	}
 

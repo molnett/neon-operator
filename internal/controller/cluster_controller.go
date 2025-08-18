@@ -23,16 +23,12 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"oltp.molnett.org/neon-operator/api/v1alpha1"
 	neonv1alpha1 "oltp.molnett.org/neon-operator/api/v1alpha1"
 	"oltp.molnett.org/neon-operator/utils"
 )
@@ -86,18 +82,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, cluster *neonv1alpha1
 	log := logf.FromContext(ctx)
 
 	if cluster.Status.Phase == "" {
-		if err := r.setPhases(ctx, cluster, func(c *neonv1alpha1.Cluster) {
-			c.Status.Phase = neonv1alpha1.ClusterPhaseCreating
-			c.Status.Conditions = []metav1.Condition{
-				{
-					Type:               "Ready",
-					Status:             metav1.ConditionTrue,
-					Reason:             "ClusterIsNotReady",
-					Message:            "Cluster Is Not Ready",
-					LastTransitionTime: metav1.Now(),
-				},
-			}
-		}); err != nil {
+		if err := utils.SetPhases(ctx, r.Client, cluster, utils.SetClusterCreatingStatus); err != nil {
 			return ctrl.Result{}, fmt.Errorf("error setting default Status: %w", err)
 		}
 		log.Info("Cluster phase set to creating")
@@ -106,18 +91,7 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, cluster *neonv1alpha1
 	err := r.createClusterResources(ctx, cluster)
 	if err != nil {
 		log.Error(err, "error while creating cluster resources")
-		r.setPhases(ctx, cluster, func(c *neonv1alpha1.Cluster) {
-			c.Status.Phase = neonv1alpha1.ClusterPhaseCannotCreateClusterResources
-			c.Status.Conditions = []metav1.Condition{
-				{
-					Type:               "Ready",
-					Status:             metav1.ConditionTrue,
-					Reason:             "ClusterIsNotReady",
-					Message:            "Cluster Is Not Ready",
-					LastTransitionTime: metav1.Now(),
-				},
-			}
-		})
+		utils.SetPhases(ctx, r.Client, cluster, utils.SetClusterCannotCreateResourcesStatus)
 		return ctrl.Result{}, fmt.Errorf("not able to create cluster resources: %w", err)
 	}
 
@@ -136,40 +110,6 @@ func (r *ClusterReconciler) getCluster(ctx context.Context, req ctrl.Request) (*
 		return nil, fmt.Errorf("cannot get the resource: %w", err)
 	}
 	return cluster, nil
-}
-
-func (r *ClusterReconciler) setPhases(ctx context.Context, cluster *neonv1alpha1.Cluster, statusfns ...func(cluster *neonv1alpha1.Cluster)) error {
-	log := logf.FromContext(ctx)
-
-	log.Info("Setting cluster phases")
-
-	originalCluster := cluster.DeepCopy()
-
-	var currentCluster v1alpha1.Cluster
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: cluster.Name, Namespace: cluster.Namespace}, &currentCluster); err != nil {
-		log.Info("Error getting cluster", "error", err)
-		return err
-	}
-
-	updatedCluster := currentCluster.DeepCopy()
-
-	for _, statusfn := range statusfns {
-		statusfn(updatedCluster)
-	}
-
-	if equality.Semantic.DeepEqual(originalCluster.Status, updatedCluster.Status) {
-		log.Info("Cluster status unchanged")
-		return nil
-	}
-
-	if err := r.Status().Patch(ctx, updatedCluster, client.MergeFromWithOptions(&currentCluster, client.MergeFromWithOptimisticLock{})); err != nil {
-		log.Error(err, "error while updating cluster status")
-		return err
-	}
-
-	cluster.Status = updatedCluster.Status
-
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

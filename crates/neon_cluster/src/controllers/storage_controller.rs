@@ -165,7 +165,7 @@ fn desired_deployment_spec(
                                 "--dev",
                                 "-l",
                                 "0.0.0.0:8080",
-                                "--control-plane-url",
+                                "--compute-hook-url",
                                 "http://neon-operator:8080",
                                 "--initial-split-shards",
                                 "0",

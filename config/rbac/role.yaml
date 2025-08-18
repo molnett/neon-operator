@@ -1,0 +1,38 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - neon.oltp.molnett.org
+  resources:
+  - branches
+  - clusters
+  - projects
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - neon.oltp.molnett.org
+  resources:
+  - branches/finalizers
+  - clusters/finalizers
+  - projects/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - neon.oltp.molnett.org
+  resources:
+  - branches/status
+  - clusters/status
+  - projects/status
+  verbs:
+  - get
+  - patch
+  - update

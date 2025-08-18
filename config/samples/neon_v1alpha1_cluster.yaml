@@ -1,0 +1,15 @@
+apiVersion: neon.oltp.molnett.org/v1alpha1
+kind: Cluster
+metadata:
+  labels:
+    app.kubernetes.io/name: neon-operator-go
+    app.kubernetes.io/managed-by: kustomize
+  name: cluster-sample
+  namespace: neon
+spec:
+  defaultPGVersion: "17"
+  bucketCredentialsSecret:
+    name: bucket-credentials
+  storageControllerDatabaseSecret:
+    name: storage-controller-pg-cluster-app
+    key: uri

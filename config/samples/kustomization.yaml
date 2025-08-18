@@ -1,0 +1,6 @@
+## Append samples of your project ##
+resources:
+- neon_v1alpha1_cluster.yaml
+- neon_v1alpha1_branch.yaml
+- neon_v1alpha1_project.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

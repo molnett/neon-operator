@@ -17,29 +17,31 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // PageserverSpec defines the desired state of Pageserver
 type PageserverSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	// The following markers will use OpenAPI v3 schema to validate the value
-	// More info: https://book.kubebuilder.io/reference/markers/crd-validation.html
+	// ID which the pageserver uses when registering with storage-controller
+	// This ID must be unique within the cluster.
+	ID uint64 `json:"id"`
 
-	// foo is an example field of Pageserver. Edit pageserver_types.go to remove/update
-	// +optional
-	Foo *string `json:"foo,omitempty"`
+	// Used to deterministically setup which storage controller and broker to communicate with
+	Cluster string `json:"cluster"`
+
+	// Reference to a Secret containing credentials for accessing a storage bucket.
+	BucketCredentialsSecret *corev1.SecretReference `json:"bucketCredentialsSecret"`
+
+	// PVC configuration
+	StorageConfig StorageConfig `json:"storageConfig"`
 }
 
 // PageserverStatus defines the observed state of Pageserver.
 type PageserverStatus struct {
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions"`
 
-	Phase       string `json:"phase,omitempty"`
+	Phase       string `json:"phase"`
 	PhaseReason string `json:"phaseReason,omitempty"`
 }
 
@@ -63,6 +65,12 @@ func (b *PageserverStatus) SetPhase(phase string) {
 	b.Phase = phase
 }
 
+const (
+	PageserverPhaseCreating              = "Creating pageserver"
+	PageserverPhaseInvalidSpec           = "Invalid spec"
+	PageserverPhaseCannotCreateResources = "Unable to create all necessary pageserver resources"
+)
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
@@ -72,7 +80,7 @@ type Pageserver struct {
 
 	// metadata is a standard object metadata
 	// +optional
-	metav1.ObjectMeta `json:"metadata,omitempty,omitzero"`
+	metav1.ObjectMeta `json:"metadata,omitzero"`
 
 	// spec defines the desired state of Pageserver
 	// +required
@@ -80,7 +88,7 @@ type Pageserver struct {
 
 	// status defines the observed state of Pageserver
 	// +optional
-	Status PageserverStatus `json:"status,omitempty,omitzero"`
+	Status PageserverStatus `json:"status,omitzero"`
 }
 
 // +kubebuilder:object:root=true
@@ -88,7 +96,7 @@ type Pageserver struct {
 // PageserverList contains a list of Pageserver
 type PageserverList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []Pageserver `json:"items"`
 }
 

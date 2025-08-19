@@ -188,6 +188,21 @@ func SetSafekeeperCannotCreateResourcesStatus(c *neonv1alpha1.Safekeeper) {
 	SetError(c, neonv1alpha1.SafekeeperPhaseCannotCreateResources, "SafekeeperIsNotReady", "Safekeeper Is Not Ready")
 }
 
+// SetPageserverCreatingStatus sets the pageserver to creating phase with Ready condition false
+func SetPageserverCreatingStatus(ps *neonv1alpha1.Pageserver) {
+	SetPhase(ps, neonv1alpha1.PageserverPhaseCreating)
+}
+
+// SetPageserverInvalidSpecStatus sets the pageserver to cannot create resources phase with Ready condition false
+func SetPageserverInvalidSpecStatus(ps *neonv1alpha1.Pageserver) {
+	SetError(ps, neonv1alpha1.PageserverPhaseInvalidSpec, "PageserverIsNotReady", "Pageserver Is Not Ready")
+}
+
+// SetPageserverCannotCreateResourcesStatus sets the pageserver to cannot create resources phase with Ready condition false
+func SetPageserverCannotCreateResourcesStatus(ps *neonv1alpha1.Pageserver) {
+	SetError(ps, neonv1alpha1.PageserverPhaseCannotCreateResources, "PageserverIsNotReady", "Pageserver Is Not Ready")
+}
+
 // updateCondition updates or adds a condition to the conditions slice
 func updateCondition(conditions []metav1.Condition, newCondition metav1.Condition) []metav1.Condition {
 	// Find existing condition with the same type

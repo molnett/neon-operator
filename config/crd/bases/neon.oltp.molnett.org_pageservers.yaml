@@ -39,10 +39,49 @@ spec:
           spec:
             description: spec defines the desired state of Pageserver
             properties:
-              foo:
-                description: foo is an example field of Pageserver. Edit pageserver_types.go
-                  to remove/update
+              bucketCredentialsSecret:
+                description: Reference to a Secret containing credentials for accessing
+                  a storage bucket.
+                properties:
+                  name:
+                    description: name is unique within a namespace to reference a
+                      secret resource.
+                    type: string
+                  namespace:
+                    description: namespace defines the space within which the secret
+                      name must be unique.
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              cluster:
+                description: Used to deterministically setup which storage controller
+                  and broker to communicate with
                 type: string
+              id:
+                description: |-
+                  ID which the pageserver uses when registering with storage-controller
+                  This ID must be unique within the cluster.
+                format: int64
+                type: integer
+              storageConfig:
+                description: PVC configuration
+                properties:
+                  size:
+                    description: |-
+                      Size of the PVCs.
+                      kubebuilder:default:=10Gi
+                    type: string
+                  storageClass:
+                    description: Name of the storage class to use for PVCs.
+                    type: string
+                required:
+                - size
+                type: object
+            required:
+            - bucketCredentialsSecret
+            - cluster
+            - id
+            - storageConfig
             type: object
           status:
             description: status defines the observed state of Pageserver
@@ -107,6 +146,9 @@ spec:
                 type: string
               phaseReason:
                 type: string
+            required:
+            - conditions
+            - phase
             type: object
         required:
         - spec

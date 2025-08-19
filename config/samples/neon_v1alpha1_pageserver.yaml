@@ -5,5 +5,11 @@ metadata:
     app.kubernetes.io/name: neon-operator-go
     app.kubernetes.io/managed-by: kustomize
   name: pageserver-sample
+  namespace: neon
 spec:
-  # TODO(user): Add fields here
+  cluster: cluster-sample
+  id: 0
+  bucketCredentialsSecret:
+    name: tigris-bucket
+  storageConfig:
+    size: 10Gi

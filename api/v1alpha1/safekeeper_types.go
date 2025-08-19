@@ -33,6 +33,7 @@ type StorageConfig struct {
 // SafekeeperSpec defines the desired state of Safekeeper
 type SafekeeperSpec struct {
 	// ID which the safekeepers uses when registering with storage-controller
+	// This ID must be unique within the cluster.
 	ID uint32 `json:"id"`
 
 	// Used to deterministically setup which storage controller and broker to communicate with

@@ -44,7 +44,9 @@ spec:
                   and broker to communicate with
                 type: string
               id:
-                description: ID which the safekeepers uses when registering with storage-controller
+                description: |-
+                  ID which the safekeepers uses when registering with storage-controller
+                  This ID must be unique within the cluster.
                 format: int32
                 type: integer
               storageConfig:

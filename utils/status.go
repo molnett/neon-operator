@@ -203,6 +203,39 @@ func SetPageserverCannotCreateResourcesStatus(ps *neonv1alpha1.Pageserver) {
 	SetError(ps, neonv1alpha1.PageserverPhaseCannotCreateResources, "PageserverIsNotReady", "Pageserver Is Not Ready")
 }
 
+// SetProjectPendingStatus sets the project to pending phase with Ready condition false
+func SetProjectPendingStatus(p *neonv1alpha1.Project) {
+	SetPhase(p, neonv1alpha1.ProjectPhasePending)
+}
+
+// SetProjectCreatingStatus sets the project to creating phase with Ready condition false
+func SetProjectCreatingStatus(p *neonv1alpha1.Project) {
+	SetPhase(p, neonv1alpha1.ProjectPhaseCreating)
+}
+
+// SetProjectReadyStatus sets the project to ready phase with Ready condition true
+func SetProjectReadyStatus(p *neonv1alpha1.Project) {
+	status := getObjectStatus(p)
+	status.SetPhase(neonv1alpha1.ProjectPhaseReady)
+	status.SetConditions(updateCondition(status.GetConditions(), metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionTrue,
+		Reason:             "ProjectIsReady",
+		Message:            "Project is ready",
+		LastTransitionTime: metav1.Now(),
+	}))
+}
+
+// SetProjectTenantCreationFailedStatus sets the project to tenant creation failed phase with Ready condition false
+func SetProjectTenantCreationFailedStatus(p *neonv1alpha1.Project, message string) {
+	SetError(p, neonv1alpha1.ProjectPhaseTenantCreationFailed, "TenantCreationFailed", message)
+}
+
+// SetProjectPageserverConnectionErrorStatus sets the project to pageserver connection error phase with Ready condition false
+func SetProjectPageserverConnectionErrorStatus(p *neonv1alpha1.Project, message string) {
+	SetError(p, neonv1alpha1.ProjectPhasePageserverConnectionError, "PageserverConnectionError", message)
+}
+
 // updateCondition updates or adds a condition to the conditions slice
 func updateCondition(conditions []metav1.Condition, newCondition metav1.Condition) []metav1.Condition {
 	// Find existing condition with the same type

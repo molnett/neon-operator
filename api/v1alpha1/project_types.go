@@ -25,12 +25,6 @@ type ProjectSpec struct {
 	// Name of the cluster where the project will be created.
 	ClusterName string `json:"cluster"`
 
-	// ID of the project
-	ID string `json:"id"`
-
-	// Name of the project
-	Name string `json:"name"`
-
 	// Will be generated unless specified.
 	// Has to be a 32 character alphanumeric string.
 	// +optional
@@ -47,6 +41,14 @@ type ProjectStatus struct {
 
 	Phase string `json:"phase,omitempty"`
 }
+
+const (
+	ProjectPhasePending                   = "Pending"
+	ProjectPhaseCreating                  = "Creating"
+	ProjectPhaseReady                     = "Ready"
+	ProjectPhaseTenantCreationFailed      = "TenantCreationFailed"
+	ProjectPhasePageserverConnectionError = "PageserverConnectionError"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

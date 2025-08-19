@@ -6,4 +6,5 @@ const (
 	ClusterNameKey    contextKey = "cluster"
 	SafekeeperNameKey contextKey = "safekeeper"
 	PageserverNameKey contextKey = "pageserver"
+	ProjectNameKey    contextKey = "project"
 )

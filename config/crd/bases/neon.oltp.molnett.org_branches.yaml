@@ -39,16 +39,12 @@ spec:
           spec:
             description: spec defines the desired state of Branch
             properties:
-              id:
-                type: string
-              name:
-                type: string
               pgVersion:
                 description: |-
                   PGVersion specifies the PostgreSQL version to use for the branch.
                   kubebuilder:validation:Enum=14;15;16;17
                   kubebuilder:default:=17
-                type: string
+                type: integer
               projectID:
                 description: The ID of the Project this Branch belongs to
                 type: string
@@ -58,8 +54,6 @@ spec:
                   Has to be a 32 character alphanumeric string.
                 type: string
             required:
-            - id
-            - name
             - pgVersion
             - projectID
             type: object

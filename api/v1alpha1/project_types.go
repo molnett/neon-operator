@@ -32,7 +32,7 @@ type ProjectSpec struct {
 
 	// PostgreSQL version to use for the project.
 	// +optional
-	PGVersion string `json:"pgVersion"`
+	PGVersion int `json:"pgVersion"`
 }
 
 // ProjectStatus defines the observed state of Project.

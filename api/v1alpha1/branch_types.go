@@ -22,9 +22,6 @@ import (
 
 // BranchSpec defines the desired state of Branch
 type BranchSpec struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-
 	// Will be generated unless specified.
 	// Has to be a 32 character alphanumeric string.
 	// +optional
@@ -33,7 +30,7 @@ type BranchSpec struct {
 	// PGVersion specifies the PostgreSQL version to use for the branch.
 	// kubebuilder:validation:Enum=14;15;16;17
 	// kubebuilder:default:=17
-	PGVersion string `json:"pgVersion"`
+	PGVersion int `json:"pgVersion"`
 
 	// The ID of the Project this Branch belongs to
 	ProjectID string `json:"projectID"`
@@ -45,6 +42,13 @@ type BranchStatus struct {
 
 	Phase string `json:"phase,omitempty"`
 }
+
+const (
+	BranchPhaseCreating               = "Creating"
+	BranchPhaseReady                  = "Ready"
+	BranchPhaseCannotCreateResources  = "CannotCreateResources"
+	BranchPhaseTimelineCreationFailed = "TimelineCreationFailed"
+)
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status

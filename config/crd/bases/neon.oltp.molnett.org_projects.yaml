@@ -44,7 +44,7 @@ spec:
                 type: string
               pgVersion:
                 description: PostgreSQL version to use for the project.
-                type: string
+                type: integer
               tenantId:
                 description: |-
                   Will be generated unless specified.

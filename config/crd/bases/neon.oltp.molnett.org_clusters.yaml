@@ -57,7 +57,7 @@ spec:
                 description: |-
                   Default PostgreSQL version to use if no version is specified in projects.
                   kubebuilder:validation:Enum=14;15;16;17
-                type: string
+                type: integer
               neonImage:
                 default: neondatabase/neon:8463
                 description: The default Neon image to use for all neon-specific resources.

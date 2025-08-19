@@ -30,7 +30,7 @@ type ClusterSpec struct {
 
 	// Default PostgreSQL version to use if no version is specified in projects.
 	// kubebuilder:validation:Enum=14;15;16;17
-	DefaultPGVersion string `json:"defaultPGVersion"`
+	DefaultPGVersion int `json:"defaultPGVersion"`
 
 	// The default Neon image to use for all neon-specific resources.
 	// +kubebuilder:default:="neondatabase/neon:8463"

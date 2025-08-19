@@ -6,4 +6,5 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: branch-sample
 spec:
-  # TODO(user): Add fields here
+  projectID: project-sample
+  pgVersion: 17

@@ -7,4 +7,5 @@ const (
 	SafekeeperNameKey contextKey = "safekeeper"
 	PageserverNameKey contextKey = "pageserver"
 	ProjectNameKey    contextKey = "project"
+	BranchNameKey     contextKey = "branch"
 )

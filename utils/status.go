@@ -236,6 +236,34 @@ func SetProjectPageserverConnectionErrorStatus(p *neonv1alpha1.Project, message 
 	SetError(p, neonv1alpha1.ProjectPhasePageserverConnectionError, "PageserverConnectionError", message)
 }
 
+// SetBranchCreatingStatus sets the branch to creating phase with Ready condition false
+func SetBranchCreatingStatus(b *neonv1alpha1.Branch) {
+	SetPhase(b, neonv1alpha1.BranchPhaseCreating)
+}
+
+// SetBranchReadyStatus sets the branch to ready phase with Ready condition true
+func SetBranchReadyStatus(b *neonv1alpha1.Branch) {
+	status := getObjectStatus(b)
+	status.SetPhase(neonv1alpha1.BranchPhaseReady)
+	status.SetConditions(updateCondition(status.GetConditions(), metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionTrue,
+		Reason:             "BranchIsReady",
+		Message:            "Branch is ready",
+		LastTransitionTime: metav1.Now(),
+	}))
+}
+
+// SetBranchCannotCreateResourcesStatus sets the branch to cannot create resources phase with Ready condition false
+func SetBranchCannotCreateResourcesStatus(b *neonv1alpha1.Branch) {
+	SetError(b, neonv1alpha1.BranchPhaseCannotCreateResources, "BranchIsNotReady", "Branch Is Not Ready")
+}
+
+// SetBranchTimelineCreationFailedStatus sets the branch to timeline creation failed phase with Ready condition false
+func SetBranchTimelineCreationFailedStatus(b *neonv1alpha1.Branch, message string) {
+	SetError(b, neonv1alpha1.BranchPhaseTimelineCreationFailed, "TimelineCreationFailed", message)
+}
+
 // updateCondition updates or adds a condition to the conditions slice
 func updateCondition(conditions []metav1.Condition, newCondition metav1.Condition) []metav1.Condition {
 	// Find existing condition with the same type

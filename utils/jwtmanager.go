@@ -93,8 +93,12 @@ func (jm *JWTManager) VerifyToken(tokenString string) (jwt.Token, error) {
 	return jwt.Parse([]byte(tokenString), jwt.WithKey(jwa.EdDSA(), jm.publicKey))
 }
 
-// JWKResponse represents the JSON Web Key structure
 type JWKResponse struct {
+	Keys []*JWK `json:"keys"`
+}
+
+// JWK represents the JSON Web Key structure
+type JWK struct {
 	Use    string   `json:"use"`
 	KeyOps []string `json:"key_ops"`
 	Alg    string   `json:"alg"`
@@ -104,11 +108,11 @@ type JWKResponse struct {
 	X      string   `json:"x"`
 }
 
-func (jm *JWTManager) ToJWK() *JWKResponse {
+func (jm *JWTManager) ToJWK() *JWK {
 	// Encode the public key bytes using base64url (no padding)
 	x := base64.RawURLEncoding.EncodeToString(jm.publicKey)
 
-	return &JWKResponse{
+	return &JWK{
 		Use:    "sig",
 		KeyOps: []string{"verify"},
 		Alg:    "EdDSA",

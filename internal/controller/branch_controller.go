@@ -107,21 +107,9 @@ func (r *BranchReconciler) reconcile(ctx context.Context, branch *neonv1alpha1.B
 
 	// Generate timeline_id if not set
 	if branch.Spec.TimelineID == "" {
-		timelineID := utils.GenerateNeonID()
-		patchData := map[string]interface{}{
-			"spec": map[string]interface{}{
-				"timelineID": timelineID,
-			},
+		if err := r.updateTimelineID(ctx, branch); err != nil {
+			return ctrl.Result{}, fmt.Errorf("failed to update timelineID: %w", err)
 		}
-		patchBytes, err := json.Marshal(patchData)
-		if err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to marshal patch data: %w", err)
-		}
-
-		if err := r.Patch(ctx, branch, client.RawPatch(types.MergePatchType, patchBytes)); err != nil {
-			return ctrl.Result{}, fmt.Errorf("failed to patch timelineID: %w", err)
-		}
-		log.Info("Generated and set timelineID", "timelineID", timelineID)
 		return ctrl.Result{RequeueAfter: time.Second}, nil
 	}
 
@@ -146,6 +134,28 @@ func (r *BranchReconciler) reconcile(ctx context.Context, branch *neonv1alpha1.B
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *BranchReconciler) updateTimelineID(ctx context.Context, branch *neonv1alpha1.Branch) error {
+	log := logf.FromContext(ctx)
+	
+	current := &neonv1alpha1.Branch{}
+	if err := r.Get(ctx, types.NamespacedName{Name: branch.GetName(), Namespace: branch.GetNamespace()}, current); err != nil {
+		return err
+	}
+
+	timelineID := utils.GenerateNeonID()
+	updated := current.DeepCopy()
+	updated.Spec.TimelineID = timelineID
+	updated.ManagedFields = nil
+
+	if err := r.Patch(ctx, updated, client.Apply, &client.PatchOptions{FieldManager: "neon-operator"}); err != nil {
+		return err
+	}
+
+	branch.Spec.TimelineID = timelineID
+	log.Info("Generated and set timelineID", "timelineID", timelineID)
+	return nil
 }
 
 func (r *BranchReconciler) getProject(ctx context.Context, projectID string, namespace string) (*neonv1alpha1.Project, error) {

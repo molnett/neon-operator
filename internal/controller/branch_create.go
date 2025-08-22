@@ -129,7 +129,6 @@ func (r *BranchReconciler) reconcileDeployment(ctx context.Context, branch *neon
 		return nil
 	}
 
-	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedDeployment.Spec, currentDeployment.Spec) {
 		// At this point, the Deployment exists and needs to be updated
 		if err := r.Client.Patch(ctx, intendedDeployment, client.Apply, &client.PatchOptions{

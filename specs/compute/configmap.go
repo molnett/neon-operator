@@ -32,7 +32,7 @@ func ConfigMap(branch *neonv1alpha1.Branch, project *neonv1alpha1.Project, jwtSe
 	var spec computeSpec
 
 	spec.FormatVersion = "1.0"
-	spec.ComputeCtlConfig.JWKS = *jwk
+	spec.ComputeCtlConfig.JWKS = utils.JWKResponse{Keys: []*utils.JWK{jwk}}
 
 	specJSON, err := json.Marshal(spec)
 	if err != nil {

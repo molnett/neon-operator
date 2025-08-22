@@ -2,6 +2,8 @@ module oltp.molnett.org/neon-operator
 
 go 1.24.0
 
+replace oltp.molnett.org/neon-operator/controlplane => ./controlplane
+
 require (
 	github.com/lestrrat-go/jwx/v3 v3.0.10
 	github.com/onsi/ginkgo/v2 v2.22.0

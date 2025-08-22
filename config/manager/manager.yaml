@@ -58,42 +58,128 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-      - command:
-        - /manager
-        args:
-          - --leader-elect
-          - --health-probe-bind-address=:8081
-        image: controller:latest
-        name: manager
-        ports: []
-        securityContext:
-          readOnlyRootFilesystem: true
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - "ALL"
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8081
-          initialDelaySeconds: 15
-          periodSeconds: 20
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: 8081
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        # TODO(user): Configure the resources accordingly based on the project requirements.
-        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
-        resources:
-          limits:
-            cpu: 500m
-            memory: 128Mi
-          requests:
-            cpu: 10m
-            memory: 64Mi
-        volumeMounts: []
+        - command:
+            - /manager
+          args:
+            - --leader-elect
+            - --health-probe-bind-address=:8081
+          image: neon-controller:latest
+          name: manager
+          ports: []
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - "ALL"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # TODO(user): Configure the resources accordingly based on the project requirements.
+          # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          volumeMounts: []
       volumes: []
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-controlplane
+  namespace: system
+  labels:
+    control-plane: controller-controlplane
+    app.kubernetes.io/name: neon-operator-go
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    matchLabels:
+      control-plane: controller-controlplane
+      app.kubernetes.io/name: neon-operator-go
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: controlplane
+      labels:
+        control-plane: controller-controlplane
+        app.kubernetes.io/name: neon-operator-go
+        app.kubernetes.io/instance: controlplane
+    spec:
+      securityContext:
+        # Projects are configured by default to adhere to the "restricted" Pod Security Standards.
+        # This ensures that deployments meet the highest security requirements for Kubernetes.
+        # For more details, see: https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - command:
+            - /controlplane
+          image: neon-controlplane:latest
+          name: controlplane
+          ports: []
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - "ALL"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # TODO(user): Configure the resources accordingly based on the project requirements.
+          # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          volumeMounts: []
+      volumes: []
+      serviceAccountName: controller-manager
+      terminationGracePeriodSeconds: 10
+---
+# Service for Controlplane
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: controlplane
+  namespace: system
+spec:
+  selector:
+    app.kubernetes.io/name: neon-operator-go
+    app.kubernetes.io/instance: controlplane
+  ports:
+    - name: http
+      port: 8081
+      targetPort: 8081
+  type: ClusterIP

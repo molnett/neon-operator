@@ -56,13 +56,13 @@ func Deployment(branch *neonv1alpha1.Branch, project *neonv1alpha1.Project) *app
 					},
 					Containers: []corev1.Container{
 						{
-							Name:  "storage-broker",
+							Name:  "compute-node",
 							Image: fmt.Sprintf("neondatabase/compute-node-v%d", branch.Spec.PGVersion),
 							Command: []string{
 								"bash",
 								"-c",
 								fmt.Sprintf(
-									"echo \"$INITIAL_SPEC_JSON\" > /var/spec.json && /usr/local/bin/compute_ctl --pgdata /.neon/data/pgdata --connstr=postgresql://cloud_admin:@0.0.0.0:55433/postgres --compute-id %s -p http://neon-operator.neon:8080 --pgbin /usr/local/bin/postgres",
+									"echo \"$INITIAL_SPEC_JSON\" > /var/spec.json && /usr/local/bin/compute_ctl --pgdata /.neon/data/pgdata --connstr=postgresql://cloud_admin:@0.0.0.0:55433/postgres --compute-id %s -p http://neon-controlplane.neon:8081 --pgbin /usr/local/bin/postgres",
 									branch.Name,
 								),
 							},

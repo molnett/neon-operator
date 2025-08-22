@@ -9,7 +9,7 @@ import (
 )
 
 func Service(safekeeper *v1alpha1.Safekeeper) *corev1.Service {
-	serviceName := fmt.Sprintf("safekeeper-%s", safekeeper.Name)
+	serviceName := fmt.Sprintf("%s-safekeeper-%d", safekeeper.Spec.Cluster, safekeeper.Spec.ID)
 
 	return &corev1.Service{
 		TypeMeta: metav1.TypeMeta{

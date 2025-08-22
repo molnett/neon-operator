@@ -52,7 +52,7 @@ func Deployment(cluster *v1alpha1.Cluster) *appsv1.Deployment {
 								"-l",
 								"0.0.0.0:8080",
 								"--control-plane-url",
-								"http://neon-operator:8080",
+								"http://neon-controlplane:8080",
 								"--initial-split-shards",
 								"0",
 							},

@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -51,7 +52,21 @@ var _ = Describe("Cluster Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: neonv1alpha1.ClusterSpec{
+						NumSafekeepers:     3,
+						DefaultPGVersion:   16,
+						NeonImage:          "neondatabase/neon:8463",
+						BucketCredentialsSecret: &corev1.SecretReference{
+							Name:      "test-bucket-secret",
+							Namespace: "default",
+						},
+						StorageControllerDatabaseSecret: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "test-db-secret",
+							},
+							Key: "uri",
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

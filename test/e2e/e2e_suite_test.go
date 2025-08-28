@@ -39,7 +39,8 @@ var (
 
 	// projectImage is the name of the image which will be build and loaded
 	// with the code source changes to be tested.
-	projectImage = "example.com/neon-operator-go:v0.0.1"
+	projectImage      = "example.com/neon-operator:v0.0.1"
+	controlplaneImage = "example.com/neon-controlplane:v0.0.1"
 )
 
 // TestE2E runs the end-to-end (e2e) test suite for the project. These tests execute in an isolated,
@@ -54,15 +55,24 @@ func TestE2E(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	By("building the manager(Operator) image")
-	cmd := exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectImage))
+	cmd := exec.Command("make", "docker-build-operator", fmt.Sprintf("IMG_OPERATOR=%s", projectImage))
 	_, err := utils.Run(cmd)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to build the manager(Operator) image")
+
+	By("building the controlplane image")
+	cmd = exec.Command("make", "docker-build-controlplane", fmt.Sprintf("IMG_CONTROLPLANE=%s", controlplaneImage))
+	_, err = utils.Run(cmd)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to build the controlplane image")
 
 	// TODO(user): If you want to change the e2e test vendor from Kind, ensure the image is
 	// built and available before running the tests. Also, remove the following block.
 	By("loading the manager(Operator) image on Kind")
 	err = utils.LoadImageToKindClusterWithName(projectImage)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to load the manager(Operator) image into Kind")
+
+	By("loading the controlplane image on Kind")
+	err = utils.LoadImageToKindClusterWithName(controlplaneImage)
+	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to load the controlplane image into Kind")
 
 	// The tests-e2e are intended to run on a temporary cluster that is created and destroyed for testing.
 	// To prevent errors when tests run in environments with CertManager already installed,

@@ -63,7 +63,7 @@ spec:
           args:
             - --leader-elect
             - --health-probe-bind-address=:8081
-          image: neon-controller:latest
+          image: controller
           name: manager
           ports: []
           securityContext:
@@ -132,7 +132,7 @@ spec:
       containers:
         - command:
             - /controlplane
-          image: neon-controlplane:latest
+          image: controlplane
           name: controlplane
           ports: []
           securityContext:

@@ -31,16 +31,16 @@ import (
 )
 
 // namespace where the project is deployed in
-const namespace = "neon-operator-go-system"
+const namespace = "neon"
 
 // serviceAccountName created for the project
-const serviceAccountName = "neon-operator-go-controller-manager"
+const serviceAccountName = "neon-controller-manager"
 
 // metricsServiceName is the name of the metrics service of the project
-const metricsServiceName = "neon-operator-go-controller-manager-metrics-service"
+const metricsServiceName = "neon-controller-manager-metrics-service"
 
 // metricsRoleBindingName is the name of the RBAC that will be created to allow get the metrics data
-const metricsRoleBindingName = "neon-operator-go-metrics-binding"
+const metricsRoleBindingName = "neon-metrics-binding"
 
 var _ = Describe("Manager", Ordered, func() {
 	var controllerPodName string
@@ -66,7 +66,7 @@ var _ = Describe("Manager", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to install CRDs")
 
 		By("deploying the controller-manager")
-		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG=%s", projectImage))
+		cmd = exec.Command("make", "deploy", fmt.Sprintf("IMG_OPERATOR=%s", projectImage), fmt.Sprintf("IMG_CONTROLPLANE=%s", controlplaneImage))
 		_, err = utils.Run(cmd)
 		Expect(err).NotTo(HaveOccurred(), "Failed to deploy the controller-manager")
 	})
@@ -173,7 +173,7 @@ var _ = Describe("Manager", Ordered, func() {
 		It("should ensure the metrics endpoint is serving metrics", func() {
 			By("creating a ClusterRoleBinding for the service account to allow access to metrics")
 			cmd := exec.Command("kubectl", "create", "clusterrolebinding", metricsRoleBindingName,
-				"--clusterrole=neon-operator-go-metrics-reader",
+				"--clusterrole=neon-metrics-reader",
 				fmt.Sprintf("--serviceaccount=%s:%s", namespace, serviceAccountName),
 			)
 			_, err := utils.Run(cmd)

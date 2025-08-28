@@ -20,7 +20,6 @@ This self-hosted operator currently has several limitations compared to the full
 ### What's Implemented
 
 - **Neon Architectural Components**: Pageservers, Safekeepers, Storage Broker, and Storage Controller
-- **Notify Hooks**: Full support for notify-attach hooks which reconfigures Compute to communicate with a different pageserver
 - **Basic Branching**: Create new database branches within projects
 - **Persistent Storage**: Configurable storage for pageservers and safekeepers
 - **E2E Testing**: End-to-end test suite for validating operator functionality
@@ -41,9 +40,7 @@ Each component runs as Kubernetes workloads with persistent storage and service 
 ### What's to come
 
 #### Functional refactors
-Safekeepers and Pageservers are built to be horizontally scalable. Moving them to a dedicated CRD rather than just a Pod/StatefulSet allows us to not have a dedicated database to manage their state.
-- [] Moving Pageservers from Pod to a dedicated CRD #30
-- [] Moving Safekeepers from a Statefulset to a dedicated CRD
+- **Notify Hooks**: Full support for notify-attach hooks which reconfigures Compute to communicate with a different pageserver
 
 #### Day 2 operations
 - [] Automatically draining Pageservers on retirement or malfunction #21

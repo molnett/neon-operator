@@ -1,5 +1,6 @@
-# Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+# Image URLs to use all building/pushing image targets
+IMG_OPERATOR ?= neon-operator:latest
+IMG_CONTROLPLANE ?= neon-controlplane:latest
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -116,12 +117,26 @@ run: manifests generate fmt vet ## Run a controller from your host.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
 # More info: https://docs.docker.com/develop/develop-images/build_enhancements/
 .PHONY: docker-build
-docker-build: ## Build docker image with the manager.
-	$(CONTAINER_TOOL) build -t ${IMG} .
+docker-build: docker-build-operator docker-build-controlplane ## Build both docker images.
+
+.PHONY: docker-build-operator
+docker-build-operator: ## Build docker image for the operator.
+	$(CONTAINER_TOOL) build -t ${IMG_OPERATOR} -f Dockerfile.operator .
+
+.PHONY: docker-build-controlplane
+docker-build-controlplane: ## Build docker image for the controlplane.
+	$(CONTAINER_TOOL) build -t ${IMG_CONTROLPLANE} -f Dockerfile.controlplane .
 
 .PHONY: docker-push
-docker-push: ## Push docker image with the manager.
-	$(CONTAINER_TOOL) push ${IMG}
+docker-push: docker-push-operator docker-push-controlplane ## Push both docker images.
+
+.PHONY: docker-push-operator
+docker-push-operator: ## Push docker image for the operator.
+	$(CONTAINER_TOOL) push ${IMG_OPERATOR}
+
+.PHONY: docker-push-controlplane
+docker-push-controlplane: ## Push docker image for the controlplane.
+	$(CONTAINER_TOOL) push ${IMG_CONTROLPLANE}
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:
@@ -143,7 +158,8 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 .PHONY: build-installer
 build-installer: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
 	mkdir -p dist
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG_OPERATOR}
+	cd config/manager && $(KUSTOMIZE) edit set image controlplane=${IMG_CONTROLPLANE}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
 ##@ Deployment
@@ -162,7 +178,8 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG_OPERATOR}
+	cd config/manager && $(KUSTOMIZE) edit set image controlplane=${IMG_CONTROLPLANE}
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
 
 .PHONY: undeploy

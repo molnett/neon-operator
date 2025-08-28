@@ -144,7 +144,7 @@ func (r *ProjectReconciler) updateTenantID(ctx context.Context, project *neonv1a
 	updated.Spec.TenantID = tenantID
 	updated.ManagedFields = nil
 
-	if err := r.Patch(ctx, updated, client.Apply, &client.PatchOptions{FieldManager: "neon-operator"}); err != nil {
+	if err := r.Patch(ctx, updated, client.MergeFrom(current), &client.PatchOptions{FieldManager: "neon-operator"}); err != nil {
 		return err
 	}
 

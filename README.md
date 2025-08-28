@@ -63,10 +63,10 @@ This operator is tested with:
 
 ### Required Dependencies
 
-- Rust toolchain (1.70 or later)
+- Go toolchain (1.21 or later)
 - Kubernetes cluster (1.28+)
 - kubectl configured for your cluster
-- [just](https://github.com/casey/just) command runner
+- make command runner
 - [Tilt](https://tilt.dev/) for local development (optional)
 - Docker for building images
 
@@ -98,42 +98,33 @@ tilt up --web
 
 ```bash
 # Install CRDs
-just install-crd
+make install
 ```
 
 ## Testing
 
 ### Unit Tests
 ```bash
-just test-unit
-```
-
-### Integration Tests
-```bash
-# Requires CRDs installed
-just test-integration
+make test
 ```
 
 ### End-to-End Tests
 ```bash
 # Run full E2E test suite (builds image and tests cluster lifecycle)
-just test-e2e
-
-# Run E2E tests with existing image (faster iteration)
-just test-e2e-fast
+make test-e2e
 
 # Cleanup any leftover test clusters
-just cleanup-e2e
+make cleanup-test-e2e
 ```
 
 ## Building
 
 ```bash
-# Build for current architecture
-just build-base
+# Build manager binary
+make build
 
-# Build for x86_64
-just build-base-x86
+# Build Docker image
+make docker-build
 ```
 
 ## Usage
@@ -142,12 +133,12 @@ just build-base-x86
 
 1. Generate and apply CRDs:
 ```bash
-just install-crd
+make install
 ```
 
 2. Deploy the operator:
 ```bash
-kubectl apply -f yaml/operator/
+make deploy
 ```
 
 ### Deployment Flow

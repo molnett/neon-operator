@@ -54,7 +54,7 @@ func (r *BranchReconciler) reconcileConfigMap(ctx context.Context, branch *neonv
 	}
 
 	var jwkSecret corev1.Secret
-	err = r.Client.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("cluster-%s-jwt", cluster.Name), Namespace: cluster.Namespace}, &jwkSecret)
+	err = r.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("cluster-%s-jwt", cluster.Name), Namespace: cluster.Namespace}, &jwkSecret)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (r *BranchReconciler) reconcileConfigMap(ctx context.Context, branch *neonv
 	}
 
 	var currentConfigMap corev1.ConfigMap
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedConfigMap.Name, Namespace: branch.Namespace}, &currentConfigMap)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedConfigMap.Name, Namespace: branch.Namespace}, &currentConfigMap)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get branch ConfigMap: %w", getErr)
 	}
@@ -77,7 +77,7 @@ func (r *BranchReconciler) reconcileConfigMap(ctx context.Context, branch *neonv
 
 	// If ConfigMap does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedConfigMap, &client.CreateOptions{
+		if err := r.Create(ctx, intendedConfigMap, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create branch ConfigMap: %w", err)
@@ -89,7 +89,7 @@ func (r *BranchReconciler) reconcileConfigMap(ctx context.Context, branch *neonv
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedConfigMap.Data, currentConfigMap.Data) {
 		// At this point, the ConfigMap exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedConfigMap, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedConfigMap, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {
@@ -108,7 +108,7 @@ func (r *BranchReconciler) reconcileDeployment(ctx context.Context, branch *neon
 	intendedDeployment := compute.Deployment(branch, project)
 
 	var currentDeployment appsv1.Deployment
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedDeployment.Name, Namespace: branch.Namespace}, &currentDeployment)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedDeployment.Name, Namespace: branch.Namespace}, &currentDeployment)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get branch Deployment: %w", getErr)
 	}
@@ -120,7 +120,7 @@ func (r *BranchReconciler) reconcileDeployment(ctx context.Context, branch *neon
 
 	// If Deployment does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedDeployment, &client.CreateOptions{
+		if err := r.Create(ctx, intendedDeployment, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create branch Deployment: %w", err)
@@ -131,7 +131,7 @@ func (r *BranchReconciler) reconcileDeployment(ctx context.Context, branch *neon
 
 	if !equality.Semantic.DeepDerivative(intendedDeployment.Spec, currentDeployment.Spec) {
 		// At this point, the Deployment exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedDeployment, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedDeployment, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {
@@ -150,7 +150,7 @@ func (r *BranchReconciler) reconcileAdminService(ctx context.Context, branch *ne
 	intendedService := compute.AdminService(branch, project)
 
 	var currentService corev1.Service
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: branch.Namespace}, &currentService)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: branch.Namespace}, &currentService)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get branch admin Service: %w", getErr)
 	}
@@ -162,7 +162,7 @@ func (r *BranchReconciler) reconcileAdminService(ctx context.Context, branch *ne
 
 	// If Service does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedService, &client.CreateOptions{
+		if err := r.Create(ctx, intendedService, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create branch admin Service: %w", err)
@@ -174,7 +174,7 @@ func (r *BranchReconciler) reconcileAdminService(ctx context.Context, branch *ne
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedService.Spec, currentService.Spec) {
 		// At this point, the Service exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {
@@ -193,7 +193,7 @@ func (r *BranchReconciler) reconcilePostgresService(ctx context.Context, branch 
 	intendedService := compute.PostgresService(branch, project)
 
 	var currentService corev1.Service
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: branch.Namespace}, &currentService)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: branch.Namespace}, &currentService)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get branch postgres Service: %w", getErr)
 	}
@@ -205,7 +205,7 @@ func (r *BranchReconciler) reconcilePostgresService(ctx context.Context, branch 
 
 	// If Service does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedService, &client.CreateOptions{
+		if err := r.Create(ctx, intendedService, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create branch postgres Service: %w", err)
@@ -217,7 +217,7 @@ func (r *BranchReconciler) reconcilePostgresService(ctx context.Context, branch 
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedService.Spec, currentService.Spec) {
 		// At this point, the Service exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {

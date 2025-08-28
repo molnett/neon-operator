@@ -94,9 +94,11 @@ func (r *ProjectReconciler) reconcile(ctx context.Context, project *neonv1alpha1
 
 		if err := r.updateTenantID(ctx, project, tenantID); err != nil {
 			log.Error(err, "Failed to update tenant ID")
-			utils.SetPhases(ctx, r.Client, project, func(p *neonv1alpha1.Project) {
+			if setErr := utils.SetPhases(ctx, r.Client, project, func(p *neonv1alpha1.Project) {
 				utils.SetProjectTenantCreationFailedStatus(p, fmt.Sprintf("Failed to update tenant ID: %v", err))
-			})
+			}); setErr != nil {
+				log.Error(setErr, "failed to set project status")
+			}
 			return ctrl.Result{}, fmt.Errorf("failed to update tenant ID: %w", err)
 		}
 
@@ -168,22 +170,30 @@ func (r *ProjectReconciler) ensureTenantOnPageserver(ctx context.Context, projec
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		log.Info("Failed to connect to pageserver, will retry", "error", err, "url", storageControllerURL)
-		utils.SetPhases(ctx, r.Client, project, func(p *neonv1alpha1.Project) {
+		if setErr := utils.SetPhases(ctx, r.Client, project, func(p *neonv1alpha1.Project) {
 			utils.SetProjectPageserverConnectionErrorStatus(p, fmt.Sprintf("Failed to connect to pageserver: %v", err))
-		})
+		}); setErr != nil {
+			log.Error(setErr, "failed to set project status")
+		}
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Error(err, "failed to close response body")
+		}
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		log.Info("Pageserver returned error status", "status", resp.Status)
-		utils.SetPhases(ctx, r.Client, project, func(p *neonv1alpha1.Project) {
+		if setErr := utils.SetPhases(ctx, r.Client, project, func(p *neonv1alpha1.Project) {
 			utils.SetProjectTenantCreationFailedStatus(p, fmt.Sprintf("Pageserver returned status: %s", resp.Status))
-		})
+		}); setErr != nil {
+			log.Error(setErr, "failed to set project status")
+		}
 		return fmt.Errorf("pageserver returned status: %s", resp.Status)
 	}
 

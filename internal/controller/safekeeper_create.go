@@ -45,7 +45,7 @@ func (r *SafekeeperReconciler) reconcilePVC(ctx context.Context, sk *neonv1alpha
 	intendedPVC := safekeeper.PersistentVolumeClaim(sk)
 
 	var currentPVC corev1.PersistentVolumeClaim
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedPVC.Name, Namespace: sk.Namespace}, &currentPVC)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedPVC.Name, Namespace: sk.Namespace}, &currentPVC)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get safekeeper PVC: %w", getErr)
 	}
@@ -57,7 +57,7 @@ func (r *SafekeeperReconciler) reconcilePVC(ctx context.Context, sk *neonv1alpha
 
 	// If PVC does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedPVC, &client.CreateOptions{
+		if err := r.Create(ctx, intendedPVC, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create safekeeper PVC: %w", err)
@@ -75,14 +75,14 @@ func (r *SafekeeperReconciler) reconcilePod(ctx context.Context, sk *neonv1alpha
 
 	// Get the parent cluster to get the image
 	var cluster neonv1alpha1.Cluster
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: sk.Spec.Cluster, Namespace: sk.Namespace}, &cluster); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: sk.Spec.Cluster, Namespace: sk.Namespace}, &cluster); err != nil {
 		return fmt.Errorf("failed to get parent cluster: %w", err)
 	}
 
 	intendedPod := safekeeper.Pod(sk, cluster.Spec.NeonImage)
 
 	var currentPod corev1.Pod
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedPod.Name, Namespace: sk.Namespace}, &currentPod)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedPod.Name, Namespace: sk.Namespace}, &currentPod)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get safekeeper pod: %w", getErr)
 	}
@@ -94,7 +94,7 @@ func (r *SafekeeperReconciler) reconcilePod(ctx context.Context, sk *neonv1alpha
 
 	// If pod does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedPod, &client.CreateOptions{
+		if err := r.Create(ctx, intendedPod, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create safekeeper pod: %w", err)
@@ -106,7 +106,7 @@ func (r *SafekeeperReconciler) reconcilePod(ctx context.Context, sk *neonv1alpha
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedPod.Spec, currentPod.Spec) {
 		// At this point, the pod exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedPod, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedPod, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {
@@ -125,7 +125,7 @@ func (r *SafekeeperReconciler) reconcileService(ctx context.Context, sk *neonv1a
 	intendedService := safekeeper.Service(sk)
 
 	var currentService corev1.Service
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: sk.Namespace}, &currentService)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: sk.Namespace}, &currentService)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get safekeeper service: %w", getErr)
 	}
@@ -137,7 +137,7 @@ func (r *SafekeeperReconciler) reconcileService(ctx context.Context, sk *neonv1a
 
 	// If service does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedService, &client.CreateOptions{
+		if err := r.Create(ctx, intendedService, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create safekeeper service: %w", err)
@@ -149,7 +149,7 @@ func (r *SafekeeperReconciler) reconcileService(ctx context.Context, sk *neonv1a
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedService.Spec, currentService.Spec) {
 		// At this point, the service exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {

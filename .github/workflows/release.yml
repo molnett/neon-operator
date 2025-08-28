@@ -11,14 +11,21 @@ concurrency:
 
 env:
   REGISTRY: quay.io
-  IMAGE_NAME: molnett/neon-operator
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: write
+    
+    strategy:
+      matrix:
+        image:
+          - name: molnett/neon-operator
+            dockerfile: Dockerfile.operator
+          - name: molnett/neon-operator-controlplane
+            dockerfile: Dockerfile.controlplane
 
     steps:
       - name: Checkout
@@ -34,19 +41,11 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
 
-      - name: Extract version from tag
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "major=$(echo $VERSION | cut -d. -f1)" >> $GITHUB_OUTPUT
-          echo "minor=$(echo $VERSION | cut -d. -f1-2)" >> $GITHUB_OUTPUT
-
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ matrix.image.name }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -57,19 +56,37 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.multi
+          file: ./${{ matrix.image.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: |
-            type=gha
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+            type=gha,key=${{ matrix.image.name }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ matrix.image.name }}:buildcache
           cache-to: |
-            type=gha,mode=max
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+            type=gha,mode=max,key=${{ matrix.image.name }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ matrix.image.name }}:buildcache,mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "major=$(echo $VERSION | cut -d. -f1)" >> $GITHUB_OUTPUT
+          echo "minor=$(echo $VERSION | cut -d. -f1-2)" >> $GITHUB_OUTPUT
 
       - name: Generate Release Notes
         id: release_notes
@@ -79,10 +96,17 @@ jobs:
           echo "## Neon Operator $VERSION" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "### Docker Images" >> $GITHUB_OUTPUT
-          echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$VERSION\`" >> $GITHUB_OUTPUT
-          echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}\`" >> $GITHUB_OUTPUT
-          echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}\`" >> $GITHUB_OUTPUT
-          echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_OUTPUT
+          echo "#### Operator" >> $GITHUB_OUTPUT
+          echo "- \`${{ env.REGISTRY }}/molnett/neon-operator:$VERSION\`" >> $GITHUB_OUTPUT
+          echo "- \`${{ env.REGISTRY }}/molnett/neon-operator:${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}\`" >> $GITHUB_OUTPUT
+          echo "- \`${{ env.REGISTRY }}/molnett/neon-operator:${{ steps.version.outputs.major }}\`" >> $GITHUB_OUTPUT
+          echo "- \`${{ env.REGISTRY }}/molnett/neon-operator:latest\`" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "#### Controlplane" >> $GITHUB_OUTPUT
+          echo "- \`${{ env.REGISTRY }}/molnett/neon-operator-controlplane:$VERSION\`" >> $GITHUB_OUTPUT
+          echo "- \`${{ env.REGISTRY }}/molnett/neon-operator-controlplane:${{ steps.version.outputs.major }}.${{ steps.version.outputs.minor }}\`" >> $GITHUB_OUTPUT
+          echo "- \`${{ env.REGISTRY }}/molnett/neon-operator-controlplane:${{ steps.version.outputs.major }}\`" >> $GITHUB_OUTPUT
+          echo "- \`${{ env.REGISTRY }}/molnett/neon-operator-controlplane:latest\`" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "### Supported Architectures" >> $GITHUB_OUTPUT
           echo "- linux/amd64" >> $GITHUB_OUTPUT

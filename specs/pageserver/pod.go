@@ -45,11 +45,17 @@ func Pod(pageserver *v1alpha1.Pageserver, image string) *corev1.Pod {
 echo "id=%d" > /config/identity.toml
 
 # Create metadata.json with proper host information using service DNS
-echo "{\"host\":\"%s-pageserver-%d.%s\",\"http_host\":\"%s-pageserver-%d.%s\",\"http_port\":9898,\"port\":6400,\"availability_zone_id\":\"se-ume\"}" > /config/metadata.json
+echo "{\"host\":\"%s-pageserver-%d.%s\"," \
+     "\"http_host\":\"%s-pageserver-%d.%s\"," \
+     "\"http_port\":9898,\"port\":6400," \
+     "\"availability_zone_id\":\"se-ume\"}" > /config/metadata.json
 
 # Copy pageserver.toml from configmap
 cp /configmap/pageserver.toml /config/pageserver.toml
-						`, pageserver.Spec.ID, pageserver.Spec.Cluster, pageserver.Spec.ID, pageserver.Namespace, pageserver.Spec.Cluster, pageserver.Spec.ID, pageserver.Namespace),
+						`,
+							pageserver.Spec.ID,
+							pageserver.Spec.Cluster, pageserver.Spec.ID, pageserver.Namespace,
+							pageserver.Spec.Cluster, pageserver.Spec.ID, pageserver.Namespace),
 					},
 					VolumeMounts: []corev1.VolumeMount{
 						{

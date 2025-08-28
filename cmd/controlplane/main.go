@@ -11,6 +11,7 @@ import (
 	"oltp.molnett.org/neon-operator/internal/controlplane"
 )
 
+//nolint:unparam
 func run(ctx context.Context, w io.Writer, args []string) error {
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt)
 	defer cancel()

@@ -8,7 +8,8 @@ import (
 // GenerateNeonID generates a 32 character hexadecimal string suitable for use with Neon resources
 func GenerateNeonID() string {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
+	// Note: rand.Read only returns error for insufficient bytes, which won't happen with fixed-size slice
+	_, _ = rand.Read(bytes)
 
 	return hex.EncodeToString(bytes)
 }

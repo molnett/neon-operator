@@ -10,6 +10,10 @@ import (
 	neonv1alpha1 "oltp.molnett.org/neon-operator/api/v1alpha1"
 )
 
+const (
+	conditionTypeReady = "Ready"
+)
+
 func TestStatusWithConditions_Interface(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -40,7 +44,7 @@ func TestStatusWithConditions_Interface(t *testing.T) {
 			// Test GetConditions/SetConditions
 			conditions := []metav1.Condition{
 				{
-					Type:   "Ready",
+					Type:   conditionTypeReady,
 					Status: metav1.ConditionTrue,
 					Reason: "TestReason",
 				},
@@ -50,8 +54,8 @@ func TestStatusWithConditions_Interface(t *testing.T) {
 			if len(gotConditions) != 1 {
 				t.Errorf("expected 1 condition, got %d", len(gotConditions))
 			}
-			if gotConditions[0].Type != "Ready" {
-				t.Errorf("expected condition type 'Ready', got '%s'", gotConditions[0].Type)
+			if gotConditions[0].Type != conditionTypeReady {
+				t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, gotConditions[0].Type)
 			}
 		})
 	}
@@ -127,7 +131,7 @@ func TestUpdateCondition(t *testing.T) {
 			name:     "Add new condition to empty slice",
 			existing: []metav1.Condition{},
 			newCondition: metav1.Condition{
-				Type:   "Ready",
+				Type:   conditionTypeReady,
 				Status: metav1.ConditionTrue,
 			},
 			expected:     1,
@@ -137,13 +141,13 @@ func TestUpdateCondition(t *testing.T) {
 			name: "Update existing condition",
 			existing: []metav1.Condition{
 				{
-					Type:   "Ready",
+					Type:   conditionTypeReady,
 					Status: metav1.ConditionFalse,
 					Reason: "OldReason",
 				},
 			},
 			newCondition: metav1.Condition{
-				Type:   "Ready",
+				Type:   conditionTypeReady,
 				Status: metav1.ConditionTrue,
 				Reason: "NewReason",
 			},
@@ -154,7 +158,7 @@ func TestUpdateCondition(t *testing.T) {
 			name: "Add new condition type",
 			existing: []metav1.Condition{
 				{
-					Type:   "Ready",
+					Type:   conditionTypeReady,
 					Status: metav1.ConditionTrue,
 				},
 			},
@@ -203,7 +207,7 @@ func TestUpdateCondition(t *testing.T) {
 func TestUpdateCondition_PreservesOtherConditions(t *testing.T) {
 	existing := []metav1.Condition{
 		{
-			Type:   "Ready",
+			Type:   conditionTypeReady,
 			Status: metav1.ConditionTrue,
 			Reason: "AllGood",
 		},
@@ -215,7 +219,7 @@ func TestUpdateCondition_PreservesOtherConditions(t *testing.T) {
 	}
 
 	newCondition := metav1.Condition{
-		Type:   "Ready",
+		Type:   conditionTypeReady,
 		Status: metav1.ConditionFalse,
 		Reason: "NotReady",
 	}
@@ -234,7 +238,7 @@ func TestUpdateCondition_PreservesOtherConditions(t *testing.T) {
 		if result[i].Type == "Available" {
 			availableCondition = &result[i]
 		}
-		if result[i].Type == "Ready" {
+		if result[i].Type == conditionTypeReady {
 			readyCondition = &result[i]
 		}
 	}
@@ -276,8 +280,8 @@ func TestSetClusterCreatingStatus(t *testing.T) {
 	}
 
 	condition := cluster.Status.Conditions[0]
-	if condition.Type != "Ready" {
-		t.Errorf("expected condition type 'Ready', got '%s'", condition.Type)
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
 	}
 	if condition.Status != metav1.ConditionFalse {
 		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
@@ -298,8 +302,8 @@ func TestSetClusterCannotCreateResourcesStatus(t *testing.T) {
 	}
 
 	condition := cluster.Status.Conditions[0]
-	if condition.Type != "Ready" {
-		t.Errorf("expected condition type 'Ready', got '%s'", condition.Type)
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
 	}
 	if condition.Status != metav1.ConditionFalse {
 		t.Errorf("expected condition status 'False', got '%s'", condition.Status)

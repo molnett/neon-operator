@@ -64,7 +64,8 @@ func SetPhases[T client.Object](ctx context.Context, c client.Client, obj T, sta
 		return nil
 	}
 
-	if err := c.Status().Patch(ctx, updated, client.MergeFromWithOptions(current, client.MergeFromWithOptimisticLock{})); err != nil {
+	patchOptions := client.MergeFromWithOptions(current, client.MergeFromWithOptimisticLock{})
+	if err := c.Status().Patch(ctx, updated, patchOptions); err != nil {
 		log.Error(err, "error while updating resource status")
 		return err
 	}
@@ -198,7 +199,8 @@ func SetPageserverInvalidSpecStatus(ps *neonv1alpha1.Pageserver) {
 	SetError(ps, neonv1alpha1.PageserverPhaseInvalidSpec, "PageserverIsNotReady", "Pageserver Is Not Ready")
 }
 
-// SetPageserverCannotCreateResourcesStatus sets the pageserver to cannot create resources phase with Ready condition false
+// SetPageserverCannotCreateResourcesStatus sets the pageserver to cannot create resources phase
+// with Ready condition false
 func SetPageserverCannotCreateResourcesStatus(ps *neonv1alpha1.Pageserver) {
 	SetError(ps, neonv1alpha1.PageserverPhaseCannotCreateResources, "PageserverIsNotReady", "Pageserver Is Not Ready")
 }
@@ -231,7 +233,8 @@ func SetProjectTenantCreationFailedStatus(p *neonv1alpha1.Project, message strin
 	SetError(p, neonv1alpha1.ProjectPhaseTenantCreationFailed, "TenantCreationFailed", message)
 }
 
-// SetProjectPageserverConnectionErrorStatus sets the project to pageserver connection error phase with Ready condition false
+// SetProjectPageserverConnectionErrorStatus sets the project to pageserver connection error phase
+// with Ready condition false
 func SetProjectPageserverConnectionErrorStatus(p *neonv1alpha1.Project, message string) {
 	SetError(p, neonv1alpha1.ProjectPhasePageserverConnectionError, "PageserverConnectionError", message)
 }

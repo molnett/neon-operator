@@ -11,7 +11,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -54,10 +53,10 @@ func (r *ClusterReconciler) reconcileJWTKeys(ctx context.Context, cluster *neonv
 	log := logf.FromContext(ctx)
 
 	var secret corev1.Secret
-	err := r.Client.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("cluster-%s-jwt", cluster.Name), Namespace: cluster.Namespace}, &secret)
+	err := r.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("cluster-%s-jwt", cluster.Name), Namespace: cluster.Namespace}, &secret)
 	if err == nil {
 		return nil
-	} else if !errors.IsNotFound(err) {
+	} else if !apierrors.IsNotFound(err) {
 		return err
 	}
 	log.Info("Creating new JWT keys secret for cluster", "cluster", cluster.Name)
@@ -87,7 +86,7 @@ func (r *ClusterReconciler) reconcileJWTKeys(ctx context.Context, cluster *neonv
 		Bytes: pubKeyVBytes,
 	})
 
-	if err := r.Client.Create(ctx, &corev1.Secret{
+	if err := r.Create(ctx, &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("cluster-%s-jwt", cluster.Name),
 			Namespace: cluster.Namespace,
@@ -140,14 +139,14 @@ func (r *ClusterReconciler) reconcileStorageControllerDeployment(ctx context.Con
 	log := logf.FromContext(ctx)
 
 	var databaseSecret corev1.Secret
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: cluster.Spec.StorageControllerDatabaseSecret.Name, Namespace: cluster.Namespace}, &databaseSecret); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: cluster.Spec.StorageControllerDatabaseSecret.Name, Namespace: cluster.Namespace}, &databaseSecret); err != nil {
 		return fmt.Errorf("failed to get storage controller database secret: %w", err)
 	}
 
 	intendedDeployment := storagecontroller.Deployment(cluster)
 
 	var currentDeployment appsv1.Deployment
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedDeployment.Name, Namespace: cluster.Namespace}, &currentDeployment)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedDeployment.Name, Namespace: cluster.Namespace}, &currentDeployment)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get storage controller deployment: %w", getErr)
 	}
@@ -159,7 +158,7 @@ func (r *ClusterReconciler) reconcileStorageControllerDeployment(ctx context.Con
 
 	// If deployment does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedDeployment, &client.CreateOptions{
+		if err := r.Create(ctx, intendedDeployment, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create storage controller deployment: %w", err)
@@ -171,7 +170,7 @@ func (r *ClusterReconciler) reconcileStorageControllerDeployment(ctx context.Con
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedDeployment.Spec, currentDeployment.Spec) {
 		// At this point, the deployment exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedDeployment, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedDeployment, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {
@@ -190,7 +189,7 @@ func (r *ClusterReconciler) reconcileStorageControllerService(ctx context.Contex
 	intendedService := storagecontroller.Service(cluster)
 
 	var currentService corev1.Service
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: cluster.Namespace}, &currentService)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: cluster.Namespace}, &currentService)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get storage controller service: %w", getErr)
 	}
@@ -202,7 +201,7 @@ func (r *ClusterReconciler) reconcileStorageControllerService(ctx context.Contex
 
 	// If service does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedService, &client.CreateOptions{
+		if err := r.Create(ctx, intendedService, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create storage controller service: %w", err)
@@ -214,7 +213,7 @@ func (r *ClusterReconciler) reconcileStorageControllerService(ctx context.Contex
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedService.Spec, currentService.Spec) {
 		// At this point, the service exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {
@@ -233,7 +232,7 @@ func (r *ClusterReconciler) reconcileStorageBrokerDeployment(ctx context.Context
 	intendedDeployment := storagebroker.Deployment(cluster)
 
 	var currentDeployment appsv1.Deployment
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedDeployment.Name, Namespace: cluster.Namespace}, &currentDeployment)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedDeployment.Name, Namespace: cluster.Namespace}, &currentDeployment)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get storage broker deployment: %w", getErr)
 	}
@@ -245,7 +244,7 @@ func (r *ClusterReconciler) reconcileStorageBrokerDeployment(ctx context.Context
 
 	// If deployment does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedDeployment, &client.CreateOptions{
+		if err := r.Create(ctx, intendedDeployment, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create storage broker deployment: %w", err)
@@ -257,7 +256,7 @@ func (r *ClusterReconciler) reconcileStorageBrokerDeployment(ctx context.Context
 	// If deployment exists, check if it needs to be updated
 	if !equality.Semantic.DeepDerivative(intendedDeployment.Spec, currentDeployment.Spec) {
 		// At this point, the deployment exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedDeployment, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedDeployment, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {
@@ -276,7 +275,7 @@ func (r *ClusterReconciler) reconcileStorageBrokerService(ctx context.Context, c
 	intendedService := storagebroker.Service(cluster)
 
 	var currentService corev1.Service
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: cluster.Namespace}, &currentService)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: cluster.Namespace}, &currentService)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get storage controller service: %w", getErr)
 	}
@@ -288,7 +287,7 @@ func (r *ClusterReconciler) reconcileStorageBrokerService(ctx context.Context, c
 
 	// If service does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedService, &client.CreateOptions{
+		if err := r.Create(ctx, intendedService, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create storage controller service: %w", err)
@@ -300,7 +299,7 @@ func (r *ClusterReconciler) reconcileStorageBrokerService(ctx context.Context, c
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedService.Spec, currentService.Spec) {
 		// At this point, the service exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {

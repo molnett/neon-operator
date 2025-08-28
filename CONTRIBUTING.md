@@ -6,15 +6,15 @@ Thank you for your interest in contributing to the Neon Kubernetes Operator! Thi
 ### Before Contributing
 
 1. Open an issue to discuss your proposed changes
-2. Ensure all tests pass locally: `just test-unit && just test-e2e`
-3. Run linting and formatting: `just fmt`
+2. Ensure all tests pass locally: `make test && make test-e2e`
+3. Run linting and formatting: `make fmt && make lint`
 4. Add tests for new functionality
 5. Update documentation as needed
 
 ### Code Style
 
 - Follow existing code patterns and conventions
-- Use the project's error types from `util/errors.rs`
+- Use Go standard error handling patterns
 - Add comprehensive error handling for all external interactions
 - Write clear, descriptive error messages
 - Include unit tests for error conditions
@@ -30,89 +30,111 @@ Thank you for your interest in contributing to the Neon Kubernetes Operator! Thi
 
 - Open an issue for questions about contributing
 - Check existing issues and PRs for similar work
-- Review the project's architecture documentation in `CLAUDE.md`
+- Review the project's architecture documentation in `AGENT.md`
 
 ## Error Handling Guidelines
 
-This project follows specific error handling guidelines to ensure robust operation in Kubernetes environments while maintaining code clarity.
+This project follows Go standard error handling patterns to ensure robust operation in Kubernetes environments while maintaining code clarity.
 
-### When `.unwrap()` Is Acceptable ✅
+### Go Error Handling Best Practices
 
-#### 1. Test Code
-Use `.unwrap()` freely in test code for cleaner, more readable tests:
+#### 1. Always Check Errors
+Handle errors explicitly using Go's standard error handling pattern:
 
-```rust
-#[test]
-fn test_cluster_config() {
-    let config = parse_cluster_config("test-input").unwrap();
-    assert_eq!(config.name, "test-cluster");
-}
-
-#[test]
-fn test_neon_cluster_creation() {
-    let cluster = create_test_cluster().unwrap();
-    assert!(cluster.metadata.name.is_some());
+```go
+func TestClusterConfig(t *testing.T) {
+    config, err := parseClusterConfig("test-input")
+    if err != nil {
+        t.Fatalf("failed to parse config: %v", err)
+    }
+    assert.Equal(t, "test-cluster", config.Name)
 }
 ```
 
-#### 2. Impossible Cases with Clear Comments
-When you can prove a case is impossible, document it clearly:
+#### 2. Wrap Errors for Context
+Use `fmt.Errorf` with `%w` to wrap errors and provide context:
 
-```rust
-// This unwrap is safe because we just checked the value exists above
-let namespace = cluster.metadata.namespace.as_ref().unwrap();
-
-// Parser guarantees this field exists for valid configs
-let endpoint = config.database_url.unwrap(); // SAFETY: validated by parser
+```go
+if err := validateClusterSpec(spec); err != nil {
+    return fmt.Errorf("invalid cluster specification: %w", err)
+}
 ```
 
-#### 3. Programming Bug Detection
-Use `.unwrap()` to detect programming errors that should crash the program:
+#### 3. Early Returns
+Return errors early to avoid deep nesting:
 
-```rust
-// If this fails, there's a bug in our cluster initialization logic
-let cluster_id = CLUSTER_REGISTRY.get(&name).unwrap();
+```go
+func processCluster(cluster *v1alpha1.NeonCluster) error {
+    if cluster.Metadata.Name == "" {
+        return fmt.Errorf("cluster name cannot be empty")
+    }
+    
+    if cluster.Metadata.Namespace == "" {
+        return fmt.Errorf("cluster namespace cannot be empty")
+    }
+    
+    // Continue processing...
+    return nil
+}
 ```
 
-#### 4. Resource Allocation in Non-Critical Paths
-For allocations that should never fail in practice:
+### When to Use Panic
 
-```rust
-let mut buffer = Vec::with_capacity(1024);
-buffer.try_reserve(additional_capacity).unwrap(); // OOM should crash
+#### 1. Programming Errors
+Use `panic()` only for unrecoverable programming errors:
+
+```go
+// If this fails, there's a bug in our initialization logic
+if clusterRegistry == nil {
+    panic("cluster registry was not initialized")
+}
 ```
 
-### When to Avoid `.unwrap()` ❌
+#### 2. Test Failures
+In test code, you can use helper functions that panic on error for cleaner tests:
 
-#### 1. External API Operations
-Always handle external API calls with proper error handling rather than using `.unwrap()`.
+```go
+func createTestCluster(t *testing.T) *v1alpha1.NeonCluster {
+    cluster, err := newTestCluster()
+    if err != nil {
+        t.Fatalf("failed to create test cluster: %v", err)
+    }
+    return cluster
+}
+```
 
-#### 2. User Input Validation
-User-provided specifications should be validated and return appropriate error messages when invalid.
+### What to Avoid
 
-#### 3. Network Operations
-Network calls can fail in various ways and should include timeout handling and retry logic where appropriate.
+#### 1. Ignoring Errors
+Never ignore errors without explicit reasoning:
 
-#### 4. File and I/O Operations
-File operations can fail due to permissions, disk space, or other system-level issues.
+```go
+// Bad
+result, _ := riskyOperation()
 
-#### 5. Resource Metadata Access
-Kubernetes resource metadata might be missing or malformed and should be validated before use.
+// Good
+result, err := riskyOperation()
+if err != nil {
+    log.Printf("operation failed, using default: %v", err)
+    result = defaultValue
+}
+```
+
+#### 2. Generic Error Messages
+Always provide context in error messages:
+
+```go
+// Bad
+return errors.New("validation failed")
+
+// Good
+return fmt.Errorf("cluster validation failed: missing required field 'spec.storage'")
+```
 
 ### Controller-Specific Patterns
 
 #### Error Propagation in Reconcile Functions
-Controller reconcile functions should return `Result<Action<()>, Error>` and handle all external operations with proper error propagation.
+Controller reconcile functions should return `(ctrl.Result, error)` and handle all external operations with proper error propagation.
 
 #### Status Updates
 Status update failures should be handled gracefully and not interrupt the main reconciliation loop.
-
-### Common Error Types
-
-The project provides these error types in `util/errors.rs`:
-
-- `StdError::KubeError` - For Kubernetes API errors
-- `StdError::InvalidArgument` - For validation errors
-- `StdError::MetadataMissing` - For missing required metadata
-- `StdError::HttpError` - For external HTTP request failures
-- `StdError::DecodingError` - For parsing/deserialization failures

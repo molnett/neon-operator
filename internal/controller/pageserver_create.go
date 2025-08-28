@@ -49,14 +49,14 @@ func (r *PageserverReconciler) reconcileConfigMap(ctx context.Context, ps *neonv
 
 	// Get the bucket credentials secret
 	var bucketSecret corev1.Secret
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: ps.Spec.BucketCredentialsSecret.Name, Namespace: ps.Namespace}, &bucketSecret); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: ps.Spec.BucketCredentialsSecret.Name, Namespace: ps.Namespace}, &bucketSecret); err != nil {
 		return fmt.Errorf("failed to get bucket credentials secret: %w", err)
 	}
 
 	intendedConfigMap := pageserver.ConfigMap(ps, &bucketSecret)
 
 	var currentConfigMap corev1.ConfigMap
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedConfigMap.Name, Namespace: ps.Namespace}, &currentConfigMap)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedConfigMap.Name, Namespace: ps.Namespace}, &currentConfigMap)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get pageserver ConfigMap: %w", getErr)
 	}
@@ -68,7 +68,7 @@ func (r *PageserverReconciler) reconcileConfigMap(ctx context.Context, ps *neonv
 
 	// If ConfigMap does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedConfigMap, &client.CreateOptions{
+		if err := r.Create(ctx, intendedConfigMap, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create pageserver ConfigMap: %w", err)
@@ -80,7 +80,7 @@ func (r *PageserverReconciler) reconcileConfigMap(ctx context.Context, ps *neonv
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedConfigMap.Data, currentConfigMap.Data) {
 		// At this point, the ConfigMap exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedConfigMap, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedConfigMap, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {
@@ -99,7 +99,7 @@ func (r *PageserverReconciler) reconcilePVC(ctx context.Context, ps *neonv1alpha
 	intendedPVC := pageserver.PersistentVolumeClaim(ps)
 
 	var currentPVC corev1.PersistentVolumeClaim
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedPVC.Name, Namespace: ps.Namespace}, &currentPVC)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedPVC.Name, Namespace: ps.Namespace}, &currentPVC)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get pageserver PVC: %w", getErr)
 	}
@@ -111,7 +111,7 @@ func (r *PageserverReconciler) reconcilePVC(ctx context.Context, ps *neonv1alpha
 
 	// If PVC does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedPVC, &client.CreateOptions{
+		if err := r.Create(ctx, intendedPVC, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create pageserver PVC: %w", err)
@@ -129,14 +129,14 @@ func (r *PageserverReconciler) reconcilePod(ctx context.Context, ps *neonv1alpha
 
 	// Get the parent cluster to get the image
 	var cluster neonv1alpha1.Cluster
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: ps.Spec.Cluster, Namespace: ps.Namespace}, &cluster); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: ps.Spec.Cluster, Namespace: ps.Namespace}, &cluster); err != nil {
 		return fmt.Errorf("failed to get parent cluster: %w", err)
 	}
 
 	intendedPod := pageserver.Pod(ps, cluster.Spec.NeonImage)
 
 	var currentPod corev1.Pod
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedPod.Name, Namespace: ps.Namespace}, &currentPod)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedPod.Name, Namespace: ps.Namespace}, &currentPod)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get pageserver pod: %w", getErr)
 	}
@@ -148,7 +148,7 @@ func (r *PageserverReconciler) reconcilePod(ctx context.Context, ps *neonv1alpha
 
 	// If pod does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedPod, &client.CreateOptions{
+		if err := r.Create(ctx, intendedPod, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create pageserver pod: %w", err)
@@ -160,7 +160,7 @@ func (r *PageserverReconciler) reconcilePod(ctx context.Context, ps *neonv1alpha
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedPod.Spec, currentPod.Spec) {
 		// At this point, the pod exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedPod, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedPod, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {
@@ -179,7 +179,7 @@ func (r *PageserverReconciler) reconcileService(ctx context.Context, ps *neonv1a
 	intendedService := pageserver.Service(ps)
 
 	var currentService corev1.Service
-	getErr := r.Client.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: ps.Namespace}, &currentService)
+	getErr := r.Get(ctx, types.NamespacedName{Name: intendedService.Name, Namespace: ps.Namespace}, &currentService)
 	if getErr != nil && !apierrors.IsNotFound(getErr) {
 		return fmt.Errorf("failed to get pageserver service: %w", getErr)
 	}
@@ -191,7 +191,7 @@ func (r *PageserverReconciler) reconcileService(ctx context.Context, ps *neonv1a
 
 	// If service does not exist, create it
 	if apierrors.IsNotFound(getErr) {
-		if err := r.Client.Create(ctx, intendedService, &client.CreateOptions{
+		if err := r.Create(ctx, intendedService, &client.CreateOptions{
 			FieldManager: utils.FieldManager,
 		}); err != nil {
 			return fmt.Errorf("failed to create pageserver service: %w", err)
@@ -203,7 +203,7 @@ func (r *PageserverReconciler) reconcileService(ctx context.Context, ps *neonv1a
 	// Use DeepDerivative with correct order: intended is subset of current
 	if !equality.Semantic.DeepDerivative(intendedService.Spec, currentService.Spec) {
 		// At this point, the service exists and needs to be updated
-		if err := r.Client.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
+		if err := r.Patch(ctx, intendedService, client.Apply, &client.PatchOptions{
 			Force:        ptr.To(true),
 			FieldManager: utils.FieldManager,
 		}); err != nil {

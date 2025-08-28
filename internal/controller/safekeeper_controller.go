@@ -85,6 +85,7 @@ func (r *SafekeeperReconciler) getSafekeeper(ctx context.Context, req ctrl.Reque
 	return safekeeper, nil
 }
 
+//nolint:unparam
 func (r *SafekeeperReconciler) reconcile(ctx context.Context, safekeeper *neonv1alpha1.Safekeeper) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -98,7 +99,9 @@ func (r *SafekeeperReconciler) reconcile(ctx context.Context, safekeeper *neonv1
 	err := r.createSafekeeperResources(ctx, safekeeper)
 	if err != nil {
 		log.Error(err, "error while creating safekeeper resources")
-		utils.SetPhases(ctx, r.Client, safekeeper, utils.SetSafekeeperCannotCreateResourcesStatus)
+		if setErr := utils.SetPhases(ctx, r.Client, safekeeper, utils.SetSafekeeperCannotCreateResourcesStatus); setErr != nil {
+			log.Error(setErr, "failed to set safekeeper status")
+		}
 		return ctrl.Result{}, fmt.Errorf("not able to create safekeeper resources: %w", err)
 	}
 

@@ -28,13 +28,18 @@ func Run(ctx context.Context, log *slog.Logger) error {
 		baseK8sConfig.BearerTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
 	}
 
-	client, err := client.New(baseK8sConfig, client.Options{})
+	k8sClient, err := client.New(baseK8sConfig, client.Options{})
+	if err != nil {
+		return fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
 
-	v1alpha1.SchemeBuilder.AddToScheme(client.Scheme())
+	if err := v1alpha1.SchemeBuilder.AddToScheme(k8sClient.Scheme()); err != nil {
+		return fmt.Errorf("failed to add scheme: %w", err)
+	}
 
 	srv := newServer(
 		log,
-		client,
+		k8sClient,
 	)
 
 	host := os.Getenv("HTTP_HOST")
@@ -76,10 +81,10 @@ func Run(ctx context.Context, log *slog.Logger) error {
 	return nil
 }
 
-func newServer(log *slog.Logger, client client.Client) http.Handler {
+func newServer(log *slog.Logger, k8sClient client.Client) http.Handler {
 	mux := http.NewServeMux()
 
-	addRoutes(mux, log, client)
+	addRoutes(mux, log, k8sClient)
 
 	return mux
 }
@@ -93,6 +98,9 @@ func encode[T any](w http.ResponseWriter, _ *http.Request, status int, v T) erro
 	return nil
 }
 
+// decode is a utility function for future API endpoints
+//
+//nolint:unused
 func decode[T any](r *http.Request) (T, error) {
 	var v T
 	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {

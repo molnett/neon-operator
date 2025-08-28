@@ -213,8 +213,8 @@ func GenerateComputeSpec(
 		actualRequest = request
 	} else {
 		// Create fallback request using storage controller client
-		client := NewStorageControllerClient(clusterName)
-		tenantInfo, err := client.GetTenantInfo(ctx, log, tenantID)
+		storageClient := NewStorageControllerClient(clusterName)
+		tenantInfo, err := storageClient.GetTenantInfo(ctx, log, tenantID)
 		if err != nil {
 			log.Error("Failed to retrieve tenant info", "tenantID", tenantID, "error", err)
 			return nil, err
@@ -335,7 +335,11 @@ func extractClusterName(deployment *appsv1.Deployment) (string, error) {
 	return "", fmt.Errorf("cluster name not found in deployment metadata")
 }
 
-func findProjectAndBranch(ctx context.Context, k8sClient client.Client, tenantID, timelineID string) (*neonv1alpha1.Project, *neonv1alpha1.Branch, error) {
+func findProjectAndBranch(
+	ctx context.Context,
+	k8sClient client.Client,
+	tenantID, timelineID string,
+) (*neonv1alpha1.Project, *neonv1alpha1.Branch, error) {
 	// Find project by tenant ID
 	projectList := &neonv1alpha1.ProjectList{}
 	err := k8sClient.List(ctx, projectList)
@@ -375,7 +379,11 @@ func findProjectAndBranch(ctx context.Context, k8sClient client.Client, tenantID
 	return project, branch, nil
 }
 
-func getJWTKeysFromSecret(ctx context.Context, k8sClient client.Client, clusterName string) (*utils.JWKResponse, error) {
+func getJWTKeysFromSecret(
+	ctx context.Context,
+	k8sClient client.Client,
+	clusterName string,
+) (*utils.JWKResponse, error) {
 	secretName := fmt.Sprintf("cluster-%s-jwt", clusterName)
 	secret := &corev1.Secret{}
 
@@ -411,7 +419,14 @@ func buildPostgresSettings(clusterName, tenantID, timelineID string) []SettingsE
 		{Name: "restart_after_crash", Value: "off", Vartype: "bool"},
 		{Name: "synchronous_standby_names", Value: "walproposer", Vartype: "string"},
 		{Name: "shared_preload_libraries", Value: "neon", Vartype: "string"},
-		{Name: "neon.safekeepers", Value: fmt.Sprintf("%s-safekeeper-0.neon:5454,%s-safekeeper-1.neon:5454,%s-safekeeper-2.neon:5454", clusterName, clusterName, clusterName), Vartype: "string"},
+		{
+			Name: "neon.safekeepers",
+			Value: fmt.Sprintf(
+				"%s-safekeeper-0.neon:5454,%s-safekeeper-1.neon:5454,%s-safekeeper-2.neon:5454",
+				clusterName, clusterName, clusterName,
+			),
+			Vartype: "string",
+		},
 		{Name: "neon.timeline_id", Value: timelineID, Vartype: "string"},
 		{Name: "neon.tenant_id", Value: tenantID, Vartype: "string"},
 		{Name: "neon.max_file_cache_size", Value: "1GB", Vartype: "string"},
@@ -437,15 +452,23 @@ type ShardInfo struct {
 	NodeAttached uint64 `json:"node_attached"`
 }
 
-func (c *StorageControllerClient) GetTenantInfo(ctx context.Context, log *slog.Logger, tenantID string) (*TenantInfo, error) {
+func (c *StorageControllerClient) GetTenantInfo(
+	ctx context.Context,
+	log *slog.Logger,
+	tenantID string,
+) (*TenantInfo, error) {
 	url := fmt.Sprintf("http://%s-storage-controller:8080/control/v1/tenant/%s", c.clusterName, tenantID)
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Get(url)
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tenant info: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("storage controller returned status %d", resp.StatusCode)

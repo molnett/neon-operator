@@ -82,6 +82,7 @@ func (r *ClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return result, nil
 }
 
+//nolint:unparam
 func (r *ClusterReconciler) reconcile(ctx context.Context, cluster *neonv1alpha1.Cluster) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -95,7 +96,9 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, cluster *neonv1alpha1
 	err := r.createClusterResources(ctx, cluster)
 	if err != nil {
 		log.Error(err, "error while creating cluster resources")
-		utils.SetPhases(ctx, r.Client, cluster, utils.SetClusterCannotCreateResourcesStatus)
+		if setErr := utils.SetPhases(ctx, r.Client, cluster, utils.SetClusterCannotCreateResourcesStatus); setErr != nil {
+			log.Error(setErr, "failed to set cluster status")
+		}
 		return ctrl.Result{}, fmt.Errorf("not able to create cluster resources: %w", err)
 	}
 

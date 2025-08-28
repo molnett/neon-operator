@@ -11,7 +11,10 @@ import (
 func Pod(safekeeper *v1alpha1.Safekeeper, image string) *corev1.Pod {
 	podName := fmt.Sprintf("%s-safekeeper-%d", safekeeper.Spec.Cluster, safekeeper.Spec.ID)
 	safekeeperCommand := fmt.Sprintf(
-		"/usr/local/bin/safekeeper --id=%d --broker-endpoint=http://%s-storage-broker:50051 --listen-pg=0.0.0.0:5454 --listen-http=0.0.0.0:7676 --advertise-pg=%s:5454 --datadir /data",
+		"/usr/local/bin/safekeeper --id=%d "+
+			"--broker-endpoint=http://%s-storage-broker:50051 "+
+			"--listen-pg=0.0.0.0:5454 --listen-http=0.0.0.0:7676 "+
+			"--advertise-pg=%s:5454 --datadir /data",
 		safekeeper.Spec.ID,
 		safekeeper.Spec.Cluster,
 		podName,

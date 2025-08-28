@@ -11,7 +11,11 @@ import (
 	"oltp.molnett.org/neon-operator/utils"
 )
 
-func ConfigMap(branch *neonv1alpha1.Branch, project *neonv1alpha1.Project, jwtSecret corev1.Secret) (*corev1.ConfigMap, error) {
+func ConfigMap(
+	branch *neonv1alpha1.Branch,
+	project *neonv1alpha1.Project,
+	jwtSecret corev1.Secret,
+) (*corev1.ConfigMap, error) {
 
 	jwtManager, err := utils.NewJWTManagerFromSecret(&jwtSecret)
 	if err != nil {

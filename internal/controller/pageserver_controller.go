@@ -86,6 +86,7 @@ func (r *PageserverReconciler) getPageserver(ctx context.Context, req ctrl.Reque
 	return pageserver, nil
 }
 
+//nolint:unparam
 func (r *PageserverReconciler) reconcile(ctx context.Context, pageserver *neonv1alpha1.Pageserver) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
@@ -99,7 +100,9 @@ func (r *PageserverReconciler) reconcile(ctx context.Context, pageserver *neonv1
 	err := r.createPageserverResources(ctx, pageserver)
 	if err != nil {
 		log.Error(err, "error while creating pageserver resources")
-		utils.SetPhases(ctx, r.Client, pageserver, utils.SetPageserverCannotCreateResourcesStatus)
+		if setErr := utils.SetPhases(ctx, r.Client, pageserver, utils.SetPageserverCannotCreateResourcesStatus); setErr != nil {
+			log.Error(setErr, "failed to set pageserver status")
+		}
 		return ctrl.Result{}, fmt.Errorf("not able to create pageserver resources: %w", err)
 	}
 

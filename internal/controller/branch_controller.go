@@ -129,7 +129,9 @@ func (r *BranchReconciler) reconcile(ctx context.Context, branch *neonv1alpha1.B
 	// Create branch resources
 	if err := r.createBranchResources(ctx, branch, project); err != nil {
 		log.Error(err, "error while creating branch resources")
-		utils.SetPhases(ctx, r.Client, branch, utils.SetBranchCannotCreateResourcesStatus)
+		if setErr := utils.SetPhases(ctx, r.Client, branch, utils.SetBranchCannotCreateResourcesStatus); setErr != nil {
+			log.Error(setErr, "failed to set branch status")
+		}
 		return ctrl.Result{}, fmt.Errorf("not able to create branch resources: %w", err)
 	}
 
@@ -138,7 +140,7 @@ func (r *BranchReconciler) reconcile(ctx context.Context, branch *neonv1alpha1.B
 
 func (r *BranchReconciler) updateTimelineID(ctx context.Context, branch *neonv1alpha1.Branch) error {
 	log := logf.FromContext(ctx)
-	
+
 	current := &neonv1alpha1.Branch{}
 	if err := r.Get(ctx, types.NamespacedName{Name: branch.GetName(), Namespace: branch.GetNamespace()}, current); err != nil {
 		return err
@@ -207,16 +209,20 @@ func (r *BranchReconciler) ensureTimeline(ctx context.Context, branch *neonv1alp
 		return fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	client := &http.Client{
+	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
-	resp, err := client.Post(pageserverURL, "application/json", bytes.NewBuffer(bodyBytes))
+	resp, err := httpClient.Post(pageserverURL, "application/json", bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		log.Info("Failed to connect to pageserver, will retry", "url", pageserverURL, "error", err)
 		return fmt.Errorf("failed to connect to pageserver: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Error(err, "failed to close response body")
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusConflict {
 		log.Info("Failed to create timeline on pageserver", "status", resp.StatusCode)

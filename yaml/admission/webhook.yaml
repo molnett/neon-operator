@@ -1,0 +1,21 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: neon-pageserver-validator
+  annotations:
+    cert-manager.io/inject-ca-from: neon/neon-admission-webhook-cert
+webhooks:
+  - name: pageserver.oltp.molnett.org
+    clientConfig:
+      service:
+        name: neon-admission-webhook
+        namespace: neon
+        path: "/validate"
+    rules:
+      - operations: ["CREATE", "UPDATE"]
+        apiGroups: ["oltp.molnett.org"]
+        apiVersions: ["v1alpha1"]
+        resources: ["neonpageservers"]
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    failurePolicy: Fail

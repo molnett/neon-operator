@@ -1,0 +1,12 @@
+[
+  {
+    "label": "Run server",
+    "adapter": "Delve",
+    "request": "launch",
+    "mode": "debug",
+    // For Delve, the program can be a package name
+    "program": "./cmd/controller"
+    // "args": [],
+    // "buildFlags": [],
+  }
+]

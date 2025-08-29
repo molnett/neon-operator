@@ -1,0 +1,9 @@
+apiVersion: neon.oltp.molnett.org/v1alpha1
+kind: Project
+metadata:
+  labels:
+    app.kubernetes.io/name: neon-operator-go
+    app.kubernetes.io/managed-by: kustomize
+  name: project-sample
+spec:
+  cluster: cluster-sample

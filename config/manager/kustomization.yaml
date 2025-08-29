@@ -1,0 +1,11 @@
+resources:
+- manager.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: controller
+  newName: example.com/neon-operator
+  newTag: v0.0.1
+- name: controlplane
+  newName: example.com/neon-controlplane
+  newTag: v0.0.1

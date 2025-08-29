@@ -1,0 +1,27 @@
+# This rule is not used by the project neon-operator-go itself.
+# It is provided to allow the cluster admin to help manage permissions for users.
+#
+# Grants full permissions ('*') over neon.oltp.molnett.org.
+# This role is intended for users authorized to modify roles and bindings within the cluster,
+# enabling them to delegate specific permissions to other users or groups as needed.
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: neon-operator-go
+    app.kubernetes.io/managed-by: kustomize
+  name: project-admin-role
+rules:
+- apiGroups:
+  - neon.oltp.molnett.org
+  resources:
+  - projects
+  verbs:
+  - '*'
+- apiGroups:
+  - neon.oltp.molnett.org
+  resources:
+  - projects/status
+  verbs:
+  - get

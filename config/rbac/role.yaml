@@ -1,0 +1,72 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - persistentvolumeclaims
+  - pods
+  - secrets
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - neon.oltp.molnett.org
+  resources:
+  - branches
+  - clusters
+  - pageservers
+  - projects
+  - safekeepers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - neon.oltp.molnett.org
+  resources:
+  - branches/finalizers
+  - clusters/finalizers
+  - pageservers/finalizers
+  - projects/finalizers
+  - safekeepers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - neon.oltp.molnett.org
+  resources:
+  - branches/status
+  - clusters/status
+  - pageservers/status
+  - projects/status
+  - safekeepers/status
+  verbs:
+  - get
+  - patch
+  - update

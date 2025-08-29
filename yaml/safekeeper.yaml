@@ -1,0 +1,11 @@
+---
+kind: NeonSafekeeper
+apiVersion: oltp.molnett.org/v1alpha1
+metadata:
+  name: basic-cluster-safekeeper-1
+  namespace: neon
+spec:
+  id: 1
+  cluster: basic-cluster
+  storage_config:
+    size: 20Gi # Optional: storage size (default: 10Gi)

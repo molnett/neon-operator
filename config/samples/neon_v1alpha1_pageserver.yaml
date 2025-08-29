@@ -1,0 +1,15 @@
+apiVersion: neon.oltp.molnett.org/v1alpha1
+kind: Pageserver
+metadata:
+  labels:
+    app.kubernetes.io/name: neon-operator-go
+    app.kubernetes.io/managed-by: kustomize
+  name: pageserver-sample
+  namespace: neon
+spec:
+  cluster: cluster-sample
+  id: 0
+  bucketCredentialsSecret:
+    name: tigris-bucket
+  storageConfig:
+    size: 10Gi

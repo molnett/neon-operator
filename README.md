@@ -20,7 +20,6 @@ This self-hosted operator currently has several limitations compared to the full
 ### What's Implemented
 
 - **Neon Architectural Components**: Pageservers, Safekeepers, Storage Broker, and Storage Controller
-- **Notify Hooks**: Full support for notify-attach hooks which reconfigures Compute to communicate with a different pageserver
 - **Basic Branching**: Create new database branches within projects
 - **Persistent Storage**: Configurable storage for pageservers and safekeepers
 - **E2E Testing**: End-to-end test suite for validating operator functionality
@@ -41,9 +40,7 @@ Each component runs as Kubernetes workloads with persistent storage and service 
 ### What's to come
 
 #### Functional refactors
-Safekeepers and Pageservers are built to be horizontally scalable. Moving them to a dedicated CRD rather than just a Pod/StatefulSet allows us to not have a dedicated database to manage their state.
-- [] Moving Pageservers from Pod to a dedicated CRD #30
-- [] Moving Safekeepers from a Statefulset to a dedicated CRD
+- **Notify Hooks**: Full support for notify-attach hooks which reconfigures Compute to communicate with a different pageserver
 
 #### Day 2 operations
 - [] Automatically draining Pageservers on retirement or malfunction #21
@@ -63,10 +60,10 @@ This operator is tested with:
 
 ### Required Dependencies
 
-- Rust toolchain (1.70 or later)
+- Go toolchain (1.21 or later)
 - Kubernetes cluster (1.28+)
 - kubectl configured for your cluster
-- [just](https://github.com/casey/just) command runner
+- make command runner
 - [Tilt](https://tilt.dev/) for local development (optional)
 - Docker for building images
 
@@ -98,42 +95,33 @@ tilt up --web
 
 ```bash
 # Install CRDs
-just install-crd
+make install
 ```
 
 ## Testing
 
 ### Unit Tests
 ```bash
-just test-unit
-```
-
-### Integration Tests
-```bash
-# Requires CRDs installed
-just test-integration
+make test
 ```
 
 ### End-to-End Tests
 ```bash
 # Run full E2E test suite (builds image and tests cluster lifecycle)
-just test-e2e
-
-# Run E2E tests with existing image (faster iteration)
-just test-e2e-fast
+make test-e2e
 
 # Cleanup any leftover test clusters
-just cleanup-e2e
+make cleanup-test-e2e
 ```
 
 ## Building
 
 ```bash
-# Build for current architecture
-just build-base
+# Build manager binary
+make build
 
-# Build for x86_64
-just build-base-x86
+# Build Docker image
+make docker-build
 ```
 
 ## Usage
@@ -142,12 +130,12 @@ just build-base-x86
 
 1. Generate and apply CRDs:
 ```bash
-just install-crd
+make install
 ```
 
 2. Deploy the operator:
 ```bash
-kubectl apply -f yaml/operator/
+make deploy
 ```
 
 ### Deployment Flow

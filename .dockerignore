@@ -1,0 +1,6 @@
+yaml/
+bin/
+.zed/
+.devcontainer/
+.github/
+config/

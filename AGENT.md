@@ -1,61 +1,63 @@
-# CLAUDE.md
+# AGENT.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance when working with code in this repository.
 
 ## Project Overview
 
-This is a Kubernetes operator for managing Neon database clusters, written in Rust. The operator uses the kube-rs library and follows the Kubernetes controller pattern with custom resource definitions (CRDs).
+This is a Kubernetes operator for managing Neon database clusters, written in Go. The operator uses the controller-runtime library and follows the Kubernetes controller pattern with custom resource definitions (CRDs).
 
 ## Architecture
 
-The project is structured as a Rust workspace with three main crates:
+The project follows standard Go project structure:
 
-- **`crates/operator`**: Main binary that runs the operator with HTTP server for health/metrics endpoints
-- **`crates/neon_cluster`**: Core library containing controllers and utilities
-- **`crates/crdgen`**: Utility for generating Kubernetes CRD YAML from Rust structs
+- **`cmd/controller/`**: Main controller binary that runs the operator with HTTP server for health/metrics endpoints
+- **`cmd/controlplane/`**: Control plane binary for managing storage components
+- **`internal/controller/`**: Core controllers and reconciliation logic
+- **`internal/controlplane/`**: Control plane utilities and services
+- **`api/`**: API definitions and CRD structs
 
 ### Controllers
 
-The operator runs three main controllers concurrently:
+The operator runs multiple controllers concurrently:
 - **Cluster Controller**: Manages NeonCluster resources and overall cluster state
 - **Project Controller**: Handles Neon project lifecycle
 - **Branch Controller**: Manages database branches within projects
 
-Controllers are located in `crates/neon_cluster/src/controllers/` and each has its own state management.
+Controllers are located in `internal/controller/` and each implements the controller-runtime reconciler pattern.
 
 ## Development Commands
 
 ### Building and Running
 ```bash
 # Build Docker image for operator
-just build-base
+make docker-build
 
 # Run operator locally against your cluster
-just run
+make run
 ```
 
 ### Testing
 ```bash
 # Run unit tests
-just test-unit
+make test
 
 # Run integration tests (requires CRDs installed)
-just test-integration
+make test-e2e
 ```
 
 ### CRD Management
 ```bash
-# Generate CRDs from Rust code
-just generate
+# Generate CRDs from Go code
+make generate
 
 # Install CRDs into cluster
-just install-crd
+make install
 ```
 
 ### Code Quality
 ```bash
-# Format code with nightly rustfmt
-just fmt
+# Format code with Go fmt
+make fmt
 ```
 
 ## External Dependencies
@@ -75,6 +77,3 @@ The operator exposes HTTP endpoints on port 8080:
 - `/health` - Health check endpoint
 - `/metrics` - Prometheus metrics
 - `/` - Diagnostics information
-
-Environment variables:
-- `RUST_LOG` - Controls logging levels (e.g., `info,kube=debug,controller=debug`)

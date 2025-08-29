@@ -1,10 +1,6 @@
-IMG = 'molnett/neon-operator'
+# Build operator image
+docker_build('neon-controller:latest', '.', dockerfile='Dockerfile.operator', build_args={'TARGETOS': 'linux', 'TARGETARCH': 'arm64'})
+docker_build('neon-controlplane:latest', '.', dockerfile='Dockerfile.controlplane', build_args={'TARGETOS': 'linux', 'TARGETARCH': 'arm64'})
 
-# Build docker image - Tilt will automatically update the deployment
-docker_build(IMG, '.', dockerfile="Dockerfile.multi", ignore=['target/'])
-
-k8s_yaml('yaml/operator/operator.yaml')
-k8s_resource('neon-operator',
-    # Optionally add port forwards for debugging
-    port_forwards=['8081:8081']
-)
+# Deploy operator
+k8s_yaml(kustomize('./config/default'))

@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -33,6 +34,7 @@ import (
 var _ = Describe("Safekeeper Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
+		const clusterName = "test-cluster"
 
 		ctx := context.Background()
 
@@ -40,12 +42,44 @@ var _ = Describe("Safekeeper Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
+		clusterNamespacedName := types.NamespacedName{
+			Name:      clusterName,
+			Namespace: "default",
+		}
+		cluster := &neonv1alpha1.Cluster{}
 		safekeeper := &neonv1alpha1.Safekeeper{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind Safekeeper")
-			err := k8sClient.Get(ctx, typeNamespacedName, safekeeper)
-			if err != nil && errors.IsNotFound(err) {
+			By("Creating the parent cluster resource")
+			cluster_err := k8sClient.Get(ctx, clusterNamespacedName, cluster)
+			if cluster_err != nil && errors.IsNotFound(cluster_err) {
+				clusterResource := &neonv1alpha1.Cluster{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      clusterName,
+						Namespace: "default",
+					},
+					Spec: neonv1alpha1.ClusterSpec{
+						NumSafekeepers:   3,
+						DefaultPGVersion: 16,
+						NeonImage:        "neondatabase/neon:8463",
+						BucketCredentialsSecret: &corev1.SecretReference{
+							Name:      "test-bucket-secret",
+							Namespace: "default",
+						},
+						StorageControllerDatabaseSecret: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: "test-db-secret",
+							},
+							Key: "uri",
+						},
+					},
+				}
+				Expect(k8sClient.Create(ctx, clusterResource)).To(Succeed())
+			}
+
+			By("Creating the custom resource for the Kind Safekeeper")
+			safekeeper_err := k8sClient.Get(ctx, typeNamespacedName, safekeeper)
+			if safekeeper_err != nil && errors.IsNotFound(safekeeper_err) {
 				resource := &neonv1alpha1.Safekeeper{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
@@ -53,7 +87,7 @@ var _ = Describe("Safekeeper Controller", func() {
 					},
 					Spec: neonv1alpha1.SafekeeperSpec{
 						ID:      1,
-						Cluster: "test-cluster",
+						Cluster: clusterName,
 						StorageConfig: neonv1alpha1.StorageConfig{
 							Size: "10Gi",
 						},
@@ -71,8 +105,15 @@ var _ = Describe("Safekeeper Controller", func() {
 
 			By("Cleanup the specific resource instance Safekeeper")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+
+			cluster := &neonv1alpha1.Cluster{}
+			err = k8sClient.Get(ctx, clusterNamespacedName, cluster)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Cleanup the specific resource instance Cluster")
+			Expect(k8sClient.Delete(ctx, cluster)).To(Succeed())
 		})
-		It("should successfully reconcile the resource", func() {
+		It("Should successfully reconcile the resources", func() {
 			By("Reconciling the created resource")
 			controllerReconciler := &SafekeeperReconciler{
 				Client: k8sClient,

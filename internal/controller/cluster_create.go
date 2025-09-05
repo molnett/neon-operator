@@ -86,25 +86,22 @@ func (r *ClusterReconciler) reconcileJWTKeys(ctx context.Context, cluster *neonv
 		Bytes: pubKeyVBytes,
 	})
 
-	if err := r.Create(ctx, &corev1.Secret{
+	jwtSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("cluster-%s-jwt", cluster.Name),
 			Namespace: cluster.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion: cluster.APIVersion,
-					Kind:       cluster.Kind,
-					Name:       cluster.Name,
-					UID:        cluster.UID,
-					Controller: ptr.To(true),
-				},
-			},
 		},
 		Data: map[string][]byte{
 			"private.pem": privKeyPEM,
 			"public.pem":  pubKeyPEM,
 		},
-	}); err != nil {
+	}
+
+	if err := ctrl.SetControllerReference(cluster, jwtSecret, r.Scheme); err != nil {
+		return fmt.Errorf("failed to set controller reference: %w", err)
+	}
+
+	if err := r.Create(ctx, jwtSecret); err != nil {
 		return err
 	}
 

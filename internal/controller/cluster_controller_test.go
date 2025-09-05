@@ -53,9 +53,9 @@ var _ = Describe("Cluster Controller", func() {
 						Namespace: "default",
 					},
 					Spec: neonv1alpha1.ClusterSpec{
-						NumSafekeepers:     3,
-						DefaultPGVersion:   16,
-						NeonImage:          "neondatabase/neon:8463",
+						NumSafekeepers:   3,
+						DefaultPGVersion: 16,
+						NeonImage:        "neondatabase/neon:8463",
 						BucketCredentialsSecret: &corev1.SecretReference{
 							Name:      "test-bucket-secret",
 							Namespace: "default",

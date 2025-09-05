@@ -34,6 +34,8 @@ import (
 var _ = Describe("Cluster Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
+		const bucketSecretName = "test-bucket-secret"
+		const dbSecretName = "test-db-secret"
 
 		ctx := context.Background()
 
@@ -44,8 +46,40 @@ var _ = Describe("Cluster Controller", func() {
 		cluster := &neonv1alpha1.Cluster{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind Cluster")
-			err := k8sClient.Get(ctx, typeNamespacedName, cluster)
+			By("Creating required secrets")
+
+			bucketSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      bucketSecretName,
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"access-key-id":     []byte("test-access-key"),
+					"secret-access-key": []byte("test-secret-key"),
+					"region":            []byte("us-east-1"),
+				},
+			}
+			err := k8sClient.Get(ctx, types.NamespacedName{Name: bucketSecretName, Namespace: "default"}, &corev1.Secret{})
+			if err != nil && errors.IsNotFound(err) {
+				Expect(k8sClient.Create(ctx, bucketSecret)).To(Succeed())
+			}
+
+			dbSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      dbSecretName,
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"uri": []byte("postgresql://user:pass@localhost:5432/db"),
+				},
+			}
+			err = k8sClient.Get(ctx, types.NamespacedName{Name: dbSecretName, Namespace: "default"}, &corev1.Secret{})
+			if err != nil && errors.IsNotFound(err) {
+				Expect(k8sClient.Create(ctx, dbSecret)).To(Succeed())
+			}
+
+			By("Creating the custom resource for the Kind Cluster")
+			err = k8sClient.Get(ctx, typeNamespacedName, cluster)
 			if err != nil && errors.IsNotFound(err) {
 				resource := &neonv1alpha1.Cluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -57,12 +91,12 @@ var _ = Describe("Cluster Controller", func() {
 						DefaultPGVersion: 16,
 						NeonImage:        "neondatabase/neon:8463",
 						BucketCredentialsSecret: &corev1.SecretReference{
-							Name:      "test-bucket-secret",
+							Name:      bucketSecretName,
 							Namespace: "default",
 						},
 						StorageControllerDatabaseSecret: &corev1.SecretKeySelector{
 							LocalObjectReference: corev1.LocalObjectReference{
-								Name: "test-db-secret",
+								Name: dbSecretName,
 							},
 							Key: "uri",
 						},
@@ -80,8 +114,19 @@ var _ = Describe("Cluster Controller", func() {
 
 			By("Cleanup the specific resource instance Cluster")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+
+			By("Cleanup the test secrets")
+			bucketSecret := &corev1.Secret{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Name: bucketSecretName, Namespace: "default"}, bucketSecret)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, bucketSecret)).To(Succeed())
+
+			dbSecret := &corev1.Secret{}
+			err = k8sClient.Get(ctx, types.NamespacedName{Name: dbSecretName, Namespace: "default"}, dbSecret)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, dbSecret)).To(Succeed())
 		})
-		It("should successfully reconcile the resource", func() {
+		It("Should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
 			controllerReconciler := &ClusterReconciler{
 				Client: k8sClient,

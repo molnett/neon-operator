@@ -271,15 +271,15 @@ func TestJWTManager_ToJWK(t *testing.T) {
 		t.Fatalf("failed to marshal JWK to JSON: %v", err)
 	}
 
-	var unmarshaledJWK JWKResponse
+	var unmarshaledJWK JWK
 	if err := json.Unmarshal(jsonBytes, &unmarshaledJWK); err != nil {
 		t.Fatalf("failed to unmarshal JWK from JSON: %v", err)
 	}
 
-	if unmarshaledJWK.Keys[0].Use != jwk.Use {
+	if unmarshaledJWK.Use != jwk.Use {
 		t.Errorf("JSON marshaling/unmarshaling changed use field")
 	}
-	if unmarshaledJWK.Keys[0].X != jwk.X {
+	if unmarshaledJWK.X != jwk.X {
 		t.Errorf("JSON marshaling/unmarshaling changed x field")
 	}
 }

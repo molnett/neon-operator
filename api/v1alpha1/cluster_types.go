@@ -60,6 +60,7 @@ type ClusterStatus struct {
 
 const (
 	ClusterPhaseCreating                     = "Creating cluster"
+	ClusterPhaseReady                        = "Ready"
 	ClusterPhaseCannotCreateClusterResources = "Unable to create all necessary cluster resources"
 )
 

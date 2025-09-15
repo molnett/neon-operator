@@ -105,6 +105,13 @@ func (r *SafekeeperReconciler) reconcile(ctx context.Context, safekeeper *neonv1
 		return ctrl.Result{}, fmt.Errorf("not able to create safekeeper resources: %w", err)
 	}
 
+	// Set safekeeper to ready status after successful resource creation
+	if err := utils.SetPhases(ctx, r.Client, safekeeper, utils.SetSafekeeperReadyStatus); err != nil {
+		log.Error(err, "failed to set safekeeper ready status")
+		return ctrl.Result{}, fmt.Errorf("failed to update safekeeper status to ready: %w", err)
+	}
+	log.Info("Safekeeper status set to ready")
+
 	return ctrl.Result{}, nil
 }
 

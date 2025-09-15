@@ -174,6 +174,19 @@ func SetClusterCannotCreateResourcesStatus(c *neonv1alpha1.Cluster) {
 	SetError(c, neonv1alpha1.ClusterPhaseCannotCreateClusterResources, "ClusterIsNotReady", "Cluster Is Not Ready")
 }
 
+// SetClusterReadyStatus sets the cluster to ready phase with Ready condition true
+func SetClusterReadyStatus(c *neonv1alpha1.Cluster) {
+	status := getObjectStatus(c)
+	status.SetPhase(neonv1alpha1.ClusterPhaseReady)
+	status.SetConditions(updateCondition(status.GetConditions(), metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionTrue,
+		Reason:             "ClusterIsReady",
+		Message:            "Cluster is ready",
+		LastTransitionTime: metav1.Now(),
+	}))
+}
+
 // SetSafekeeperCreatingStatus sets the safekeeper to creating phase with Ready condition false
 func SetSafekeeperCreatingStatus(sk *neonv1alpha1.Safekeeper) {
 	SetPhase(sk, neonv1alpha1.SafekeeperPhaseCreating)
@@ -187,6 +200,19 @@ func SetSafekeeperInvalidSpecStatus(c *neonv1alpha1.Safekeeper) {
 // SetSafekeeperCannotCreateResourcesStatus sets the cluster to cannot create resources phase with Ready condition false
 func SetSafekeeperCannotCreateResourcesStatus(c *neonv1alpha1.Safekeeper) {
 	SetError(c, neonv1alpha1.SafekeeperPhaseCannotCreateResources, "SafekeeperIsNotReady", "Safekeeper Is Not Ready")
+}
+
+// SetSafekeeperReadyStatus sets the safekeeper to ready phase with Ready condition true
+func SetSafekeeperReadyStatus(sk *neonv1alpha1.Safekeeper) {
+	status := getObjectStatus(sk)
+	status.SetPhase(neonv1alpha1.SafekeeperPhaseReady)
+	status.SetConditions(updateCondition(status.GetConditions(), metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionTrue,
+		Reason:             "SafekeeperIsReady",
+		Message:            "Safekeeper is ready",
+		LastTransitionTime: metav1.Now(),
+	}))
 }
 
 // SetPageserverCreatingStatus sets the pageserver to creating phase with Ready condition false
@@ -203,6 +229,19 @@ func SetPageserverInvalidSpecStatus(ps *neonv1alpha1.Pageserver) {
 // with Ready condition false
 func SetPageserverCannotCreateResourcesStatus(ps *neonv1alpha1.Pageserver) {
 	SetError(ps, neonv1alpha1.PageserverPhaseCannotCreateResources, "PageserverIsNotReady", "Pageserver Is Not Ready")
+}
+
+// SetPageserverReadyStatus sets the pageserver to ready phase with Ready condition true
+func SetPageserverReadyStatus(ps *neonv1alpha1.Pageserver) {
+	status := getObjectStatus(ps)
+	status.SetPhase(neonv1alpha1.PageserverPhaseReady)
+	status.SetConditions(updateCondition(status.GetConditions(), metav1.Condition{
+		Type:               "Ready",
+		Status:             metav1.ConditionTrue,
+		Reason:             "PageserverIsReady",
+		Message:            "Pageserver is ready",
+		LastTransitionTime: metav1.Now(),
+	}))
 }
 
 // SetProjectPendingStatus sets the project to pending phase with Ready condition false

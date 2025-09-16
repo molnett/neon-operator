@@ -31,6 +31,14 @@ func TestStatusWithConditions_Interface(t *testing.T) {
 			name:   "BranchStatus implements StatusWithConditions",
 			status: &neonv1alpha1.BranchStatus{},
 		},
+		{
+			name:   "SafekeeperStatus implements StatusWithConditions",
+			status: &neonv1alpha1.SafekeeperStatus{},
+		},
+		{
+			name:   "PageserverStatus implements StatusWithConditions",
+			status: &neonv1alpha1.PageserverStatus{},
+		},
 	}
 
 	for _, tt := range tests {
@@ -93,6 +101,24 @@ func TestGetObjectStatus(t *testing.T) {
 				},
 			},
 			expected: "branch-phase",
+		},
+		{
+			name: "Safekeeper returns SafekeeperStatus",
+			obj: &neonv1alpha1.Safekeeper{
+				Status: neonv1alpha1.SafekeeperStatus{
+					Phase: "safekeeper-phase",
+				},
+			},
+			expected: "safekeeper-phase",
+		},
+		{
+			name: "Pageserver returns PageserverStatus",
+			obj: &neonv1alpha1.Pageserver{
+				Status: neonv1alpha1.PageserverStatus{
+					Phase: "pageserver-phase",
+				},
+			},
+			expected: "pageserver-phase",
 		},
 	}
 
@@ -310,5 +336,385 @@ func TestSetClusterCannotCreateResourcesStatus(t *testing.T) {
 	}
 	if condition.Reason != "ClusterIsNotReady" {
 		t.Errorf("expected reason 'ClusterIsNotReady', got '%s'", condition.Reason)
+	}
+}
+
+// Test Cluster Ready Status
+func TestSetClusterReadyStatus(t *testing.T) {
+	cluster := &neonv1alpha1.Cluster{}
+
+	SetClusterReadyStatus(cluster)
+
+	if cluster.Status.Phase != neonv1alpha1.ClusterPhaseReady {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.ClusterPhaseReady, cluster.Status.Phase)
+	}
+
+	if len(cluster.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(cluster.Status.Conditions))
+	}
+
+	condition := cluster.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionTrue {
+		t.Errorf("expected condition status 'True', got '%s'", condition.Status)
+	}
+	if condition.Reason != "ClusterIsReady" {
+		t.Errorf("expected reason 'ClusterIsReady', got '%s'", condition.Reason)
+	}
+	if condition.Message != "Cluster is ready" {
+		t.Errorf("expected message 'Cluster is ready', got '%s'", condition.Message)
+	}
+}
+
+// Test Safekeeper Status Functions
+func TestSetSafekeeperCreatingStatus(t *testing.T) {
+	safekeeper := &neonv1alpha1.Safekeeper{}
+
+	SetSafekeeperCreatingStatus(safekeeper)
+
+	if safekeeper.Status.Phase != neonv1alpha1.SafekeeperPhaseCreating {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.SafekeeperPhaseCreating, safekeeper.Status.Phase)
+	}
+
+	if len(safekeeper.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(safekeeper.Status.Conditions))
+	}
+
+	condition := safekeeper.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
+	}
+}
+
+func TestSetSafekeeperInvalidSpecStatus(t *testing.T) {
+	safekeeper := &neonv1alpha1.Safekeeper{}
+
+	SetSafekeeperInvalidSpecStatus(safekeeper)
+
+	if safekeeper.Status.Phase != neonv1alpha1.SafekeeperPhaseInvalidSpec {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.SafekeeperPhaseInvalidSpec, safekeeper.Status.Phase)
+	}
+
+	if len(safekeeper.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(safekeeper.Status.Conditions))
+	}
+
+	condition := safekeeper.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
+	}
+	if condition.Reason != "SafekeeperIsNotReady" {
+		t.Errorf("expected reason 'SafekeeperIsNotReady', got '%s'", condition.Reason)
+	}
+}
+
+func TestSetSafekeeperCannotCreateResourcesStatus(t *testing.T) {
+	safekeeper := &neonv1alpha1.Safekeeper{}
+
+	SetSafekeeperCannotCreateResourcesStatus(safekeeper)
+
+	if safekeeper.Status.Phase != neonv1alpha1.SafekeeperPhaseCannotCreateResources {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.SafekeeperPhaseCannotCreateResources, safekeeper.Status.Phase)
+	}
+
+	if len(safekeeper.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(safekeeper.Status.Conditions))
+	}
+
+	condition := safekeeper.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
+	}
+	if condition.Reason != "SafekeeperIsNotReady" {
+		t.Errorf("expected reason 'SafekeeperIsNotReady', got '%s'", condition.Reason)
+	}
+}
+
+func TestSetSafekeeperReadyStatus(t *testing.T) {
+	safekeeper := &neonv1alpha1.Safekeeper{}
+
+	SetSafekeeperReadyStatus(safekeeper)
+
+	if safekeeper.Status.Phase != neonv1alpha1.SafekeeperPhaseReady {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.SafekeeperPhaseReady, safekeeper.Status.Phase)
+	}
+
+	if len(safekeeper.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(safekeeper.Status.Conditions))
+	}
+
+	condition := safekeeper.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionTrue {
+		t.Errorf("expected condition status 'True', got '%s'", condition.Status)
+	}
+	if condition.Reason != "SafekeeperIsReady" {
+		t.Errorf("expected reason 'SafekeeperIsReady', got '%s'", condition.Reason)
+	}
+	if condition.Message != "Safekeeper is ready" {
+		t.Errorf("expected message 'Safekeeper is ready', got '%s'", condition.Message)
+	}
+}
+
+// Test Pageserver Status Functions
+func TestSetPageserverCreatingStatus(t *testing.T) {
+	pageserver := &neonv1alpha1.Pageserver{}
+
+	SetPageserverCreatingStatus(pageserver)
+
+	if pageserver.Status.Phase != neonv1alpha1.PageserverPhaseCreating {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.PageserverPhaseCreating, pageserver.Status.Phase)
+	}
+
+	if len(pageserver.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(pageserver.Status.Conditions))
+	}
+
+	condition := pageserver.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
+	}
+}
+
+func TestSetPageserverInvalidSpecStatus(t *testing.T) {
+	pageserver := &neonv1alpha1.Pageserver{}
+
+	SetPageserverInvalidSpecStatus(pageserver)
+
+	if pageserver.Status.Phase != neonv1alpha1.PageserverPhaseInvalidSpec {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.PageserverPhaseInvalidSpec, pageserver.Status.Phase)
+	}
+
+	if len(pageserver.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(pageserver.Status.Conditions))
+	}
+
+	condition := pageserver.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
+	}
+	if condition.Reason != "PageserverIsNotReady" {
+		t.Errorf("expected reason 'PageserverIsNotReady', got '%s'", condition.Reason)
+	}
+}
+
+func TestSetPageserverCannotCreateResourcesStatus(t *testing.T) {
+	pageserver := &neonv1alpha1.Pageserver{}
+
+	SetPageserverCannotCreateResourcesStatus(pageserver)
+
+	if pageserver.Status.Phase != neonv1alpha1.PageserverPhaseCannotCreateResources {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.PageserverPhaseCannotCreateResources, pageserver.Status.Phase)
+	}
+
+	if len(pageserver.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(pageserver.Status.Conditions))
+	}
+
+	condition := pageserver.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
+	}
+	if condition.Reason != "PageserverIsNotReady" {
+		t.Errorf("expected reason 'PageserverIsNotReady', got '%s'", condition.Reason)
+	}
+}
+
+func TestSetPageserverReadyStatus(t *testing.T) {
+	pageserver := &neonv1alpha1.Pageserver{}
+
+	SetPageserverReadyStatus(pageserver)
+
+	if pageserver.Status.Phase != neonv1alpha1.PageserverPhaseReady {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.PageserverPhaseReady, pageserver.Status.Phase)
+	}
+
+	if len(pageserver.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(pageserver.Status.Conditions))
+	}
+
+	condition := pageserver.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionTrue {
+		t.Errorf("expected condition status 'True', got '%s'", condition.Status)
+	}
+	if condition.Reason != "PageserverIsReady" {
+		t.Errorf("expected reason 'PageserverIsReady', got '%s'", condition.Reason)
+	}
+	if condition.Message != "Pageserver is ready" {
+		t.Errorf("expected message 'Pageserver is ready', got '%s'", condition.Message)
+	}
+}
+
+// Test Branch Status Functions
+func TestSetBranchCreatingStatus(t *testing.T) {
+	branch := &neonv1alpha1.Branch{}
+
+	SetBranchCreatingStatus(branch)
+
+	if branch.Status.Phase != neonv1alpha1.BranchPhaseCreating {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.BranchPhaseCreating, branch.Status.Phase)
+	}
+
+	if len(branch.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(branch.Status.Conditions))
+	}
+
+	condition := branch.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
+	}
+}
+
+func TestSetBranchReadyStatus(t *testing.T) {
+	branch := &neonv1alpha1.Branch{}
+
+	SetBranchReadyStatus(branch)
+
+	if branch.Status.Phase != neonv1alpha1.BranchPhaseReady {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.BranchPhaseReady, branch.Status.Phase)
+	}
+
+	if len(branch.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(branch.Status.Conditions))
+	}
+
+	condition := branch.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionTrue {
+		t.Errorf("expected condition status 'True', got '%s'", condition.Status)
+	}
+	if condition.Reason != "BranchIsReady" {
+		t.Errorf("expected reason 'BranchIsReady', got '%s'", condition.Reason)
+	}
+	if condition.Message != "Branch is ready" {
+		t.Errorf("expected message 'Branch is ready', got '%s'", condition.Message)
+	}
+}
+
+func TestSetBranchCannotCreateResourcesStatus(t *testing.T) {
+	branch := &neonv1alpha1.Branch{}
+
+	SetBranchCannotCreateResourcesStatus(branch)
+
+	if branch.Status.Phase != neonv1alpha1.BranchPhaseCannotCreateResources {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.BranchPhaseCannotCreateResources, branch.Status.Phase)
+	}
+
+	if len(branch.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(branch.Status.Conditions))
+	}
+
+	condition := branch.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
+	}
+	if condition.Reason != "BranchIsNotReady" {
+		t.Errorf("expected reason 'BranchIsNotReady', got '%s'", condition.Reason)
+	}
+}
+
+// Test Project Status Functions
+func TestSetProjectPendingStatus(t *testing.T) {
+	project := &neonv1alpha1.Project{}
+
+	SetProjectPendingStatus(project)
+
+	if project.Status.Phase != neonv1alpha1.ProjectPhasePending {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.ProjectPhasePending, project.Status.Phase)
+	}
+
+	if len(project.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(project.Status.Conditions))
+	}
+
+	condition := project.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
+	}
+}
+
+func TestSetProjectCreatingStatus(t *testing.T) {
+	project := &neonv1alpha1.Project{}
+
+	SetProjectCreatingStatus(project)
+
+	if project.Status.Phase != neonv1alpha1.ProjectPhaseCreating {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.ProjectPhaseCreating, project.Status.Phase)
+	}
+
+	if len(project.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(project.Status.Conditions))
+	}
+
+	condition := project.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionFalse {
+		t.Errorf("expected condition status 'False', got '%s'", condition.Status)
+	}
+}
+
+func TestSetProjectReadyStatus(t *testing.T) {
+	project := &neonv1alpha1.Project{}
+
+	SetProjectReadyStatus(project)
+
+	if project.Status.Phase != neonv1alpha1.ProjectPhaseReady {
+		t.Errorf("expected phase '%s', got '%s'", neonv1alpha1.ProjectPhaseReady, project.Status.Phase)
+	}
+
+	if len(project.Status.Conditions) != 1 {
+		t.Errorf("expected 1 condition, got %d", len(project.Status.Conditions))
+	}
+
+	condition := project.Status.Conditions[0]
+	if condition.Type != conditionTypeReady {
+		t.Errorf("expected condition type '%s', got '%s'", conditionTypeReady, condition.Type)
+	}
+	if condition.Status != metav1.ConditionTrue {
+		t.Errorf("expected condition status 'True', got '%s'", condition.Status)
+	}
+	if condition.Reason != "ProjectIsReady" {
+		t.Errorf("expected reason 'ProjectIsReady', got '%s'", condition.Reason)
+	}
+	if condition.Message != "Project is ready" {
+		t.Errorf("expected message 'Project is ready', got '%s'", condition.Message)
 	}
 }

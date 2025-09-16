@@ -53,6 +53,7 @@ type SafekeeperStatus struct {
 
 const (
 	SafekeeperPhaseCreating              = "Creating safekeeper"
+	SafekeeperPhaseReady                 = "Ready"
 	SafekeeperPhaseInvalidSpec           = "Invalid spec"
 	SafekeeperPhaseCannotCreateResources = "Unable to create all necessary safekeeper resources"
 )

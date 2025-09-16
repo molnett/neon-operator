@@ -67,6 +67,7 @@ func (b *PageserverStatus) SetPhase(phase string) {
 
 const (
 	PageserverPhaseCreating              = "Creating pageserver"
+	PageserverPhaseReady                 = "Ready"
 	PageserverPhaseInvalidSpec           = "Invalid spec"
 	PageserverPhaseCannotCreateResources = "Unable to create all necessary pageserver resources"
 )

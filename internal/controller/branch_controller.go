@@ -135,6 +135,13 @@ func (r *BranchReconciler) reconcile(ctx context.Context, branch *neonv1alpha1.B
 		return ctrl.Result{}, fmt.Errorf("not able to create branch resources: %w", err)
 	}
 
+	// Set branch to ready status after successful resource creation
+	if err := utils.SetPhases(ctx, r.Client, branch, utils.SetBranchReadyStatus); err != nil {
+		log.Error(err, "failed to set branch ready status")
+		return ctrl.Result{}, fmt.Errorf("failed to update branch status to ready: %w", err)
+	}
+	log.Info("Branch status set to ready")
+
 	return ctrl.Result{}, nil
 }
 

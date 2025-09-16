@@ -102,6 +102,13 @@ func (r *ClusterReconciler) reconcile(ctx context.Context, cluster *neonv1alpha1
 		return ctrl.Result{}, fmt.Errorf("not able to create cluster resources: %w", err)
 	}
 
+	// Set cluster to ready status after successful resource creation
+	if err := utils.SetPhases(ctx, r.Client, cluster, utils.SetClusterReadyStatus); err != nil {
+		log.Error(err, "failed to set cluster ready status")
+		return ctrl.Result{}, fmt.Errorf("failed to update cluster status to ready: %w", err)
+	}
+	log.Info("Cluster status set to ready")
+
 	return ctrl.Result{}, nil
 }
 

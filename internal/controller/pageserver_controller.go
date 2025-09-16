@@ -106,6 +106,13 @@ func (r *PageserverReconciler) reconcile(ctx context.Context, pageserver *neonv1
 		return ctrl.Result{}, fmt.Errorf("not able to create pageserver resources: %w", err)
 	}
 
+	// Set pageserver to ready status after successful resource creation
+	if err := utils.SetPhases(ctx, r.Client, pageserver, utils.SetPageserverReadyStatus); err != nil {
+		log.Error(err, "failed to set pageserver ready status")
+		return ctrl.Result{}, fmt.Errorf("failed to update pageserver status to ready: %w", err)
+	}
+	log.Info("Pageserver status set to ready")
+
 	return ctrl.Result{}, nil
 }
 

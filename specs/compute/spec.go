@@ -1,6 +1,7 @@
 package compute
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -46,13 +47,13 @@ func (s *ShardIndex) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("invalid shard index string length: %d", len(str))
 	}
 
-	bytes, err := hex.DecodeString(str)
+	decodedbytes, err := hex.DecodeString(str)
 	if err != nil {
 		return err
 	}
 
-	s.ShardNumber = bytes[0]
-	s.ShardCount = bytes[1]
+	s.ShardNumber = decodedbytes[0]
+	s.ShardCount = decodedbytes[1]
 	return nil
 }
 
@@ -133,6 +134,115 @@ type ComputeSpecResponse struct {
 	Spec             ComputeSpec      `json:"spec"`
 	ComputeCtlConfig ComputeCtlConfig `json:"compute_ctl_config"`
 	Status           string           `json:"status"`
+}
+
+func RefreshConfiguration(ctx context.Context,
+	log *slog.Logger,
+	k8sClient client.Client,
+	request ComputeHookNotifyRequest,
+	deployment *appsv1.Deployment) error {
+	var computeId string
+	var exists bool
+	tenentServices := &corev1.ServiceList{}
+
+	if annotations := deployment.GetAnnotations(); annotations != nil {
+		computeId, exists = annotations["neon.compute_id"]
+		if !exists {
+			return fmt.Errorf("failed to extract compute ID from annotations")
+		}
+	}
+
+	clusterName, err := extractClusterName(deployment)
+	if err != nil {
+		return fmt.Errorf("failed to extract clustername from deployment: %w", err)
+	}
+
+	spec, err := GenerateComputeSpec(ctx, log, k8sClient, &request, computeId)
+	if err != nil {
+		return fmt.Errorf("failed to generate compute spec: %w", err)
+	}
+	specBytes, err := json.Marshal(spec)
+	if err != nil {
+		return fmt.Errorf("failed to marshal spec JSON: %w", err)
+	}
+
+	// Get JWT manager from secret to generate tokens
+	secretName := fmt.Sprintf("cluster-%s-jwt", clusterName)
+	secret := &corev1.Secret{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{Name: secretName, Namespace: "neon"}, secret); err != nil {
+		return fmt.Errorf("failed to get JWT secret %s: %w", secretName, err)
+	}
+
+	jwtManager, err := utils.NewJWTManagerFromSecret(secret)
+	if err != nil {
+		return fmt.Errorf("failed to create JWT manager from secret: %w", err)
+	}
+
+	log.Info("Successfully created JWT manager")
+
+	// Create JWT claims
+	now := time.Now()
+	claims := map[string]any{
+		"compute_id": computeId,
+		"aud":        "compute",
+		"roles":      []string{"compute_ctl:admin"},
+		"exp":        now.Add(1 * time.Hour).Unix(), // 1 hour expiry
+		"iat":        now.Unix(),                    // issued at
+		"iss":        "neon-operator",               // issuer
+		"sub":        computeId,                     // subject
+	}
+
+	// Generate the signed JWT token
+	tokenString, err := jwtManager.GenerateToken(claims)
+	if err != nil {
+		return fmt.Errorf("failed to generate JWT token: %w", err)
+	}
+
+	log.Info("Successfully generated JWT token", "compute_id", computeId)
+
+	err = k8sClient.List(ctx, tenentServices, client.MatchingLabels{
+		"neon.tenant_id": request.TenantID})
+	if err != nil {
+		return fmt.Errorf("failed to get service based on tenant ID: %w", err)
+	}
+	for _, service := range tenentServices.Items {
+		serviceName := service.Name
+		serviceNamespace := service.Namespace
+		expectedServiceName := computeId + "-admin"
+		if expectedServiceName == serviceName {
+			url := fmt.Sprintf("http://%s-admin.%s:3080/configure", computeId, serviceNamespace)
+			log.Info("Calling /configure endpoint at URL: ", "URL is", url)
+			// Create HTTP request
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewBuffer(specBytes))
+			if err != nil {
+				return fmt.Errorf("failed to create request for service %s: %w", serviceName, err)
+			}
+			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenString))
+			req.Header.Set("Content-Type", "application/json")
+			// HTTP client with timeout
+			computeClient := &http.Client{Timeout: 2 * time.Second}
+			resp, err := computeClient.Do(req)
+			if err != nil {
+				log.Info("Failed to call /configure ", "service", serviceName, "URL", url, "error", err)
+				return fmt.Errorf("failed to call /configure for service %s: %w", serviceName, err)
+			}
+			defer func() {
+				if err := resp.Body.Close(); err != nil {
+					log.Error("Failed to close request body", "error", err)
+				}
+			}()
+
+			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				log.Info("Failed to call /configure ", "service", serviceName, "status:", resp.Status)
+				return fmt.Errorf("failed to call /configure for service %s: %s", serviceName, resp.Status)
+			} else {
+				log.Info("Successfully called /configure ", "for service", serviceName, "url:", url)
+			}
+		}
+
+	}
+
+	return nil
 }
 
 // GenerateComputeSpec generates a compute specification JSON response
@@ -293,6 +403,27 @@ func GenerateComputeSpec(
 // Helper function to create string pointer
 func stringPtr(s string) *string {
 	return &s
+}
+
+// FindTenantDeployments finds deployments with the specified tenant ID
+func FindTenantDeployments(ctx context.Context,
+	k8sClient client.Client,
+	tenantID string) (*appsv1.DeploymentList, error) {
+	deploymentList := &appsv1.DeploymentList{}
+
+	// List all deployments with the tenant_id label
+	err := k8sClient.List(ctx, deploymentList, client.MatchingLabels{
+		"neon.tenant_id": tenantID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list deployments: %w", err)
+	}
+
+	if len(deploymentList.Items) == 0 {
+		return nil, fmt.Errorf("no deployment available with the tenantID %s", tenantID)
+	}
+
+	return deploymentList, nil
 }
 
 // Placeholder functions that need to be implemented elsewhere

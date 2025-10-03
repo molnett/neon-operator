@@ -1,6 +1,10 @@
 package controlplane
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -17,6 +21,7 @@ func addRoutes(
 	mux.Handle("/compute/api/v2/computes/{compute_id}/spec", logRequests(log, handleComputeSpec(log, k8sClient)))
 	mux.Handle("/healthz", logRequests(log, handleHealthCheck()))
 	mux.Handle("/readyz", logRequests(log, handleHealthCheck()))
+	mux.Handle("/notify-attach", logRequests(log, notifyAttach(log, k8sClient)))
 }
 
 type responseWriter struct {
@@ -72,4 +77,88 @@ func handleComputeSpec(log *slog.Logger, k8sClient client.Client) http.Handler {
 			return
 		}
 	})
+}
+
+func notifyAttach(log *slog.Logger, k8sClient client.Client) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := r.Body.Close(); err != nil {
+				log.Error("Failed to close request body", "error", err)
+			}
+		}()
+		ctx := r.Context()
+		var failcount int
+
+		// Read full body
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Error("Failed to read request body", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		log.Info("Received notify attach request", "request", string(body))
+
+		var actualRequest compute.ComputeHookNotifyRequest
+		err = json.Unmarshal(body, &actualRequest)
+		if err != nil {
+			log.Error("Failed to Unmarshal the request", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Check if tenantID exists in deployment labels
+		exists, err := checkTenantIDInDeployments(ctx, k8sClient, actualRequest.TenantID)
+		if err != nil {
+			log.Error("Failed to check tenant ID in deployments", "tenantID", actualRequest.TenantID, "error", err)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if !exists {
+			log.Warn("TenantID not found in any deployment labels", "tenantID", actualRequest.TenantID)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		log.Info("TenantID found in deployment labels", "tenantID", actualRequest.TenantID)
+
+		// Find deployments for the tenant
+		deployments, err := compute.FindTenantDeployments(ctx, k8sClient, actualRequest.TenantID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error("Failed to find tenant deployments", "error", err)
+			return
+		}
+
+		// Generate compute spec using the first deployment
+		if len(deployments.Items) > 0 {
+			for _, deployment := range deployments.Items {
+				if err := compute.RefreshConfiguration(ctx, log, k8sClient, actualRequest, &deployment); err != nil {
+					log.Error("Failed to refresh the configuration", "deployment", deployment.Name, "error", err)
+					failcount = failcount + 1
+				} else {
+					log.Info("Successfully refreshed configuration", "deployment", deployment.Name)
+				}
+			}
+		}
+
+		if failcount > 0 {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error("Failed to refresh configuration for some deployments", "failed_count", failcount, "total_count", len(deployments.Items))
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	})
+}
+
+// checkTenantIDInDeployments checks if the given tenantID exists in any deployment's labels
+func checkTenantIDInDeployments(ctx context.Context, k8sClient client.Client, tenantID string) (bool, error) {
+	deploymentList, err := compute.FindTenantDeployments(ctx, k8sClient, tenantID)
+	if err != nil {
+		return false, fmt.Errorf("failed to find deployments with tenantID %s: %w", tenantID, err)
+	}
+
+	// Return true if we found any deployments with this tenantID
+	return len(deploymentList.Items) > 0, nil
 }

@@ -1,6 +1,8 @@
 package controlplane
 
 import (
+	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -17,6 +19,7 @@ func addRoutes(
 	mux.Handle("/compute/api/v2/computes/{compute_id}/spec", logRequests(log, handleComputeSpec(log, k8sClient)))
 	mux.Handle("/healthz", logRequests(log, handleHealthCheck()))
 	mux.Handle("/readyz", logRequests(log, handleHealthCheck()))
+	mux.Handle("/notify-attach", logRequests(log, notifyAttach(log, k8sClient)))
 }
 
 type responseWriter struct {
@@ -71,5 +74,65 @@ func handleComputeSpec(log *slog.Logger, k8sClient client.Client) http.Handler {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+	})
+}
+
+func notifyAttach(log *slog.Logger, k8sClient client.Client) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if err := r.Body.Close(); err != nil {
+				log.Error("Failed to close request body", "error", err)
+			}
+		}()
+		ctx := r.Context()
+		var failcount int
+
+		// Read full body
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Error("Failed to read request body", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		log.Info("Received notify attach request", "request", string(body))
+
+		var actualRequest compute.ComputeHookNotifyRequest
+		err = json.Unmarshal(body, &actualRequest)
+		if err != nil {
+			log.Error("Failed to Unmarshal the request", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		// Find deployments for the tenant
+		deployments, err := compute.FindTenantDeployments(ctx, k8sClient, actualRequest.TenantID)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error("Failed to find tenant deployments", "error", err)
+			return
+		}
+		if len(deployments.Items) == 0 {
+			log.Warn("TenantID not found in any deployment labels", "tenantID", actualRequest.TenantID)
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		// Generate compute spec using the deployment
+		for _, deployment := range deployments.Items {
+			if err := compute.RefreshConfiguration(ctx, log, k8sClient, actualRequest, &deployment); err != nil {
+				log.Error("Failed to refresh the configuration", "deployment", deployment.Name, "error", err)
+				failcount = failcount + 1
+			} else {
+				log.Info("Successfully refreshed configuration", "deployment", deployment.Name)
+			}
+		}
+
+		if failcount > 0 {
+			w.WriteHeader(http.StatusInternalServerError)
+			log.Error("Failed to refresh configuration for some deployments", "failed_count", failcount, "total_count", len(deployments.Items))
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
 	})
 }

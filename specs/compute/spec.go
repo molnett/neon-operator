@@ -143,7 +143,6 @@ func RefreshConfiguration(ctx context.Context,
 	deployment *appsv1.Deployment) error {
 	var computeId string
 	var exists bool
-	tenentServices := &corev1.ServiceList{}
 
 	if annotations := deployment.GetAnnotations(); annotations != nil {
 		computeId, exists = annotations["neon.compute_id"]
@@ -200,6 +199,8 @@ func RefreshConfiguration(ctx context.Context,
 
 	log.Info("Successfully generated JWT token", "compute_id", computeId)
 
+	tenentServices := &corev1.ServiceList{}
+
 	err = k8sClient.List(ctx, tenentServices, client.MatchingLabels{
 		"neon.tenant_id": request.TenantID})
 	if err != nil {
@@ -212,14 +213,12 @@ func RefreshConfiguration(ctx context.Context,
 		if expectedServiceName == serviceName {
 			url := fmt.Sprintf("http://%s-admin.%s:3080/configure", computeId, serviceNamespace)
 			log.Info("Calling /configure endpoint at URL: ", "URL is", url)
-			// Create HTTP request
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, bytes.NewBuffer(specBytes))
 			if err != nil {
 				return fmt.Errorf("failed to create request for service %s: %w", serviceName, err)
 			}
 			req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenString))
 			req.Header.Set("Content-Type", "application/json")
-			// HTTP client with timeout
 			computeClient := &http.Client{Timeout: 2 * time.Second}
 			resp, err := computeClient.Do(req)
 			if err != nil {
